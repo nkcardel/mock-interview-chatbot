@@ -1,0 +1,17 @@
+.streamlit/secrets.toml
+.eval_cache/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store

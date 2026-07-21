@@ -1,0 +1,18 @@
+[project]
+name = "mock-interview-chatbot"
+version = "0.1.0"
+description = "Streamlit mock interview chatbot with structured-output feedback scoring."
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit>=1.37,<2",
+    "openai>=1.40,<2",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.2,<9"]
+
+[tool.pytest.ini_options]
+markers = [
+    "model_eval: calls the OpenAI API, costs money, non-deterministic (run explicitly with -m model_eval)",
+]

@@ -1,0 +1,6 @@
+streamlit>=1.37,<2
+openai>=1.40,<2
+pydantic>=2.7,<3
+
+# test_evals.py only (model-eval suite, not needed to run the app)
+pytest>=8.2,<9
