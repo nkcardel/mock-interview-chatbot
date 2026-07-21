@@ -133,7 +133,7 @@ if not st.session_state.setup_complete:
         col1, col2 = st.columns(2)
         with col1:
             st.radio(
-                "Choose level",
+                "Choose a level",
                 key="input_level",
                 options=["Junior", "Mid-level", "Senior"],
             )
