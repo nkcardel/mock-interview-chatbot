@@ -76,6 +76,39 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 └── README.md
 ```
 
+## 🔭 Future Enhancements
+
+### Interview setup options
+Currently the app builds one tailored system prompt per session. Planned setup
+flow will let the user pick between three modes:
+1. **Select a company** — choose from a curated list of companies, each with
+   its own set of interview questions.
+2. **Custom company** — define a company and specific requirements, and have
+   the interview generated around that context.
+3. **No company in mind** — run a generic, role-based interview with no
+   company-specific framing.
+
+### HR interview question categories
+HR-track interviews will draw from five distinct question categories rather
+than a single undifferentiated pool:
+1. Background questions
+2. Technical knowledge questions
+3. Situational questions
+4. Brain teaser questions
+5. Analytical questions
+
+### Enhanced feedback screen
+The feedback screen will move beyond a single overall score to a fuller
+evaluation:
+- **Five scored metrics**: an overall score, plus four criteria — role-related
+  knowledge, problem-solving skills, communication skills, and workplace
+  culture fit — with the specific criteria weighting varying depending on
+  whether the interviewer was HR or technical.
+- **Text summary**, covering:
+  1. Overall performance
+  2. Areas for improvement
+  3. A detailed, question-by-question evaluation with key takeaways
+
 ## 👩‍💻 How to Run
 
 1. Clone this repository
