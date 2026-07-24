@@ -33,6 +33,8 @@ def get_openai_client():
 # ---------------------------
 if "setup_complete" not in st.session_state:
     st.session_state.setup_complete = False
+if "setup_step" not in st.session_state:
+    st.session_state.setup_step = 1
 if "user_message_count" not in st.session_state:
     st.session_state.user_message_count = 0
 if "feedback_shown" not in st.session_state:
@@ -41,18 +43,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_complete" not in st.session_state:
     st.session_state.chat_complete = False
-
-# Initialize form defaults in session state
-for key, default in [
-    ("name", ""),
-    ("experience", ""),
-    ("skills", ""),
-    ("level", "Junior"),
-    ("position", "Data Scientist"),
-    ("company", "Amazon"),
-]:
-    if key not in st.session_state:
-        st.session_state[key] = default
+if "setup_error" not in st.session_state:
+    st.session_state.setup_error = None
 
 # Store finalized values safely outside form widget lifecycle
 if "user_data" not in st.session_state:
@@ -61,22 +53,64 @@ if "user_data" not in st.session_state:
         "experience": "",
         "skills": "",
         "level": "Junior",
-        "position": "Data Scientist",
-        "company": "Amazon",
+        "position": "",
+        "company": "",
     }
+
+COMPANY_PLACEHOLDER = "Select a company..."
+POSITION_PLACEHOLDER = "Select a position..."
+REQUIRED_FIELD_ERROR = "Please fill in all required fields."
+
+
+def advance_to_company():
+    name = st.session_state.get("input_name", "")
+    experience = st.session_state.get("input_experience", "")
+    skills = st.session_state.get("input_skills", "")
+    st.session_state.user_data["name"] = name
+    st.session_state.user_data["experience"] = experience
+    st.session_state.user_data["skills"] = skills
+
+    if not (name.strip() and experience.strip() and skills.strip()):
+        st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        return
+
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 2
+
+
+def advance_to_position():
+    company = st.session_state.get("input_company", COMPANY_PLACEHOLDER)
+    st.session_state.user_data["company"] = "" if company == COMPANY_PLACEHOLDER else company
+
+    if company == COMPANY_PLACEHOLDER:
+        st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        return
+
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 3
 
 
 def complete_setup():
-    # Save widget inputs into user_data dictionary upon submit
-    st.session_state.user_data = {
-        "name": st.session_state.get("input_name", ""),
-        "experience": st.session_state.get("input_experience", ""),
-        "skills": st.session_state.get("input_skills", ""),
-        "level": st.session_state.get("input_level", "Junior"),
-        "position": st.session_state.get("input_position", "Data Scientist"),
-        "company": st.session_state.get("input_company", "Amazon"),
-    }
+    position = st.session_state.get("input_position", POSITION_PLACEHOLDER)
+    st.session_state.user_data["level"] = st.session_state.get("input_level", "Junior")
+    st.session_state.user_data["position"] = "" if position == POSITION_PLACEHOLDER else position
+
+    if position == POSITION_PLACEHOLDER:
+        st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        return
+
+    st.session_state.setup_error = None
     st.session_state.setup_complete = True
+
+
+def back_to_personal_info():
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 1
+
+
+def back_to_company():
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 2
 
 
 def show_feedback():
@@ -86,11 +120,21 @@ def show_feedback():
 def reset_interview():
     """Reset all interview progress and return to Step 1."""
     st.session_state.setup_complete = False
+    st.session_state.setup_step = 1
     st.session_state.chat_complete = False
     st.session_state.feedback_shown = False
     st.session_state.user_message_count = 0
     st.session_state.messages = []
-    
+    st.session_state.user_data = {
+        "name": "",
+        "experience": "",
+        "skills": "",
+        "level": "Junior",
+        "position": "",
+        "company": "",
+    }
+    st.session_state.setup_error = None
+
     # Remove cached feedback if it exists
     if "feedback_data" in st.session_state:
         del st.session_state["feedback_data"]
@@ -99,48 +143,101 @@ def reset_interview():
 render_step_indicator(
     st.session_state.feedback_shown,
     st.session_state.setup_complete,
-    st.session_state.chat_complete,
+    st.session_state.setup_step,
 )
 
 # ---------------------------
-# Step 1: Setup Phase
+# Step 1: Setup Phase (Personal Information → Company → Position)
 # ---------------------------
 if not st.session_state.setup_complete:
-    with st.form("setup_form"):
-        st.subheader("Personal Information")
+    saved = st.session_state.user_data
 
-        st.text_input(
-            label="Name",
-            max_chars=40,
-            key="input_name",
-            placeholder="Enter your name",
-        )
-        st.text_area(
-            label="Experience",
-            key="input_experience",
-            max_chars=200,
-            placeholder="Describe your experience",
-        )
-        st.text_area(
-            label="Skills",
-            key="input_skills",
-            max_chars=200,
-            placeholder="List your skills",
-        )
-        st.markdown("<hr/>", unsafe_allow_html=True)
-        st.subheader("Company and Position")
+    if st.session_state.setup_step == 1:
+        with st.form("personal_info_form"):
+            st.subheader("Personal Information")
+            st.caption("All fields are required.")
+            if st.session_state.setup_error:
+                st.error(st.session_state.setup_error, icon="⚠️")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.radio(
-                "Choose a level",
-                key="input_level",
-                options=["Junior", "Mid-level", "Senior"],
+            st.text_input(
+                label="Name *",
+                max_chars=40,
+                key="input_name",
+                value=saved["name"],
+                placeholder="Enter your name",
             )
-        with col2:
+            st.text_area(
+                label="Experience *",
+                key="input_experience",
+                max_chars=200,
+                value=saved["experience"],
+                placeholder="Describe your experience",
+            )
+            st.text_area(
+                label="Skills *",
+                key="input_skills",
+                max_chars=200,
+                value=saved["skills"],
+                placeholder="List your skills",
+            )
+            _, next_col = st.columns([5.15, 1])
+            with next_col:
+                st.form_submit_button("Next →", type="primary", on_click=advance_to_company, use_container_width=True)
+
+    elif st.session_state.setup_step == 2:
+        with st.form("company_form"):
+            st.subheader("Company")
+            st.caption("All fields are required.")
+            if st.session_state.setup_error:
+                st.error(st.session_state.setup_error, icon="⚠️")
+
+            company_options = (
+                COMPANY_PLACEHOLDER,
+                "Amazon",
+                "Meta",
+                "Udemy",
+                "365 Company",
+                "Nestle",
+                "LinkedIn",
+                "Spotify",
+            )
+            company_index = company_options.index(saved["company"]) if saved["company"] in company_options else 0
             st.selectbox(
-                "Choose a position",
-                (
+                "Choose a company *",
+                company_options,
+                index=company_index,
+                key="input_company",
+            )
+
+            # Only st.form_submit_button (not st.button) is allowed inside a form, but a
+            # form can hold more than one — so Back and Next both live here, side by side.
+            _, back_col, next_col = st.columns([4, 1, 1])
+            with back_col:
+                st.form_submit_button("← Back", type="secondary", on_click=back_to_personal_info, use_container_width=True)
+            with next_col:
+                st.form_submit_button(
+                    "Next →", type="primary", on_click=advance_to_position, use_container_width=True
+                )
+
+    elif st.session_state.setup_step == 3:
+        with st.form("position_form"):
+            st.subheader("Position")
+            st.caption("All fields are required.")
+            if st.session_state.setup_error:
+                st.error(st.session_state.setup_error, icon="⚠️")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                level_options = ["Junior", "Mid-level", "Senior"]
+                st.radio(
+                    "Choose a level",
+                    key="input_level",
+                    options=level_options,
+                    index=level_options.index(saved["level"]),
+                )
+            with col2:
+                position_options = (
+                    POSITION_PLACEHOLDER,
                     "Data Scientist",
                     "Data Engineer",
                     "AI Strategist",
@@ -149,21 +246,29 @@ if not st.session_state.setup_complete:
                     "ML Engineer",
                     "BI Analyst",
                     "Financial Analyst",
-                ),
-                key="input_position",
-            )
+                )
+                position_index = (
+                    position_options.index(saved["position"]) if saved["position"] in position_options else 0
+                )
+                st.selectbox(
+                    "Choose a position *",
+                    position_options,
+                    index=position_index,
+                    key="input_position",
+                )
 
-        st.selectbox(
-            "Choose a company",
-            ("Amazon", "Meta", "Udemy", "365 Company", "Nestle", "LinkedIn", "Spotify"),
-            key="input_company",
-        )
+            st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
 
-        st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
-        st.form_submit_button("Start Interview →", type="primary", on_click=complete_setup)
+            _, back_col, next_col = st.columns([3, 0.86, 1.3])
+            with back_col:
+                st.form_submit_button("← Back", type="secondary", on_click=back_to_company, use_container_width=True)
+            with next_col:
+                st.form_submit_button(
+                    "Start Interview →", type="primary", on_click=complete_setup, use_container_width=True
+                )
 
 # ---------------------------
-# Step 2: Interview Phase
+# Step 4: Interview Phase
 # ---------------------------
 if st.session_state.setup_complete and not st.session_state.feedback_shown:
     data = st.session_state.user_data
@@ -261,7 +366,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
         st.button("Get Feedback →", type="primary", on_click=show_feedback, key="btn_feedback")
 
 # ---------------------------
-# Step 3: Feedback Phase
+# Step 5: Feedback Phase
 # ---------------------------
 if st.session_state.feedback_shown:
     st.subheader("📋 Feedback")
