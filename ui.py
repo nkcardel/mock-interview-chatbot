@@ -65,6 +65,15 @@ CUSTOM_CSS = """
         border: none !important;
     }
 
+    /* ---- Secondary form submit buttons ---- */
+    button[kind="secondaryFormSubmit"] {
+        background-color: #97a6c326 !important;
+        transition: background-color 0.15s ease !important;
+    }
+    button[kind="secondaryFormSubmit"]:hover {
+        background-color: #97a6c359 !important;
+    }
+
     /* ---- Score badge ---- */
     .score-badge {
         display: inline-flex;
@@ -109,17 +118,27 @@ def render_header():
     )
 
 
-def render_step_indicator(feedback_shown: bool, setup_complete: bool, chat_complete: bool):
-    """Renders the step indicator progress bar."""
-    if not feedback_shown:
-        if not setup_complete:
-            step_label, step_num = "Step 1 of 3 · Setup", 1
-        elif not chat_complete:
-            step_label, step_num = "Step 2 of 3 · Interview", 2
-        else:
-            step_label, step_num = "Step 3 of 3 · Review", 3
-        st.markdown(f'<span class="step-pill">{step_label}</span>', unsafe_allow_html=True)
-        st.progress(step_num / 3)
+SETUP_STEP_LABELS = {
+    1: "Personal Information",
+    2: "Company",
+    3: "Position",
+}
+
+
+def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step: int = 1):
+    """Renders the step indicator progress bar across the 5-step flow:
+    Personal Information -> Company -> Position -> Interview -> Feedback.
+    """
+    if feedback_shown:
+        step_label, step_num = "Step 5 of 5 · Feedback", 5
+    elif setup_complete:
+        step_label, step_num = "Step 4 of 5 · Interview", 4
+    else:
+        step_num = setup_step
+        step_label = f"Step {step_num} of 5 · {SETUP_STEP_LABELS.get(step_num, 'Personal Information')}"
+
+    st.markdown(f'<span class="step-pill">{step_label}</span>', unsafe_allow_html=True)
+    st.progress(step_num / 5)
 
 
 def render_evaluation(evaluation):
