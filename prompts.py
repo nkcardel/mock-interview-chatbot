@@ -2,8 +2,30 @@ MODEL_NAME = "gpt-4o"
 MAX_QUESTIONS = 5
 
 
-def get_interviewer_system_prompt(name: str, experience: str, skills: str, level: str, position: str, company: str) -> str:
+def get_interviewer_system_prompt(
+    name: str,
+    experience: str,
+    skills: str,
+    level: str,
+    position: str,
+    company: str = "",
+    industry: str = "",
+    job_description: str = "",
+    job_requirements: str = "",
+) -> str:
     """Generates the initial system prompt for the AI interviewer."""
+    role_lines = [f"- Level: {level}", f"- Position: {position}"]
+    if company:
+        role_lines.append(f"- Company: {company}")
+    if industry:
+        role_lines.append(f"- Industry: {industry}")
+    if job_description:
+        role_lines.append(f"- Job Description: {job_description}")
+    if job_requirements:
+        role_lines.append(f"- Job Requirements: {job_requirements}")
+
+    role_context = f"the {level} {position} role at {company}" if company else f"a {level} {position} role"
+
     return (
         "You are an experienced HR executive conducting a realistic job interview. "
         "Stay fully in character as the interviewer for the entire conversation.\n\n"
@@ -12,13 +34,11 @@ def get_interviewer_system_prompt(name: str, experience: str, skills: str, level
         f"- Experience: {experience}\n"
         f"- Skills: {skills}\n\n"
         "ROLE BEING INTERVIEWED FOR\n"
-        f"- Level: {level}\n"
-        f"- Position: {position}\n"
-        f"- Company: {company}\n\n"
+        f"{chr(10).join(role_lines)}\n\n"
         "INTERVIEW GUIDELINES\n"
         "- Ask one question at a time and wait for the candidate's response before continuing.\n"
-        "- Tailor your questions to the candidate's stated experience and skills, and to what the "
-        f"{level} {position} role at {company} would realistically require (technical knowledge, "
+        "- Tailor your questions to the candidate's stated experience and skills, and to what "
+        f"{role_context} would realistically require (technical knowledge, "
         "behavioral scenarios, problem-solving, and role-specific judgment).\n"
         "- Vary question types across the interview: start with an icebreaker, then mix technical, "
         "behavioral (e.g. STAR-style), and situational questions appropriate to the seniority level.\n"
