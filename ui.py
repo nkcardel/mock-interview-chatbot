@@ -1,6 +1,10 @@
+import base64
 import html
+from pathlib import Path
 
 import streamlit as st
+
+LOGO_DIR = Path(__file__).parent / "assets" / "logos"
 
 CUSTOM_CSS = """
 <style>
@@ -36,23 +40,97 @@ CUSTOM_CSS = """
         margin-bottom: 1.2rem;
     }
 
-    /* ---- Step pill ---- */
-    .step-pill {
-        display: inline-block;
-        padding: 0.15rem 0.7rem;
-        border-radius: 999px;
-        background: rgba(28, 131, 255, 0.1);
-        color: #0054A3 !important;
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        margin-bottom: 0.6rem;
+    /* ---- Setup form container ---- */
+    div[data-testid="stForm"] {
+        padding: 1.78rem !important;
     }
 
-    /* ---- Step progress indicator ---- */
-    div[data-testid="stProgress"] > div > div > div {
-        background-color: #0054A3 !important;
+    /* ---- Setup form headings ---- */
+    div[data-testid="stForm"] h3 {
+        padding-top: 0 !important;
+    }
+    .st-key-personal_info_next_row,
+    .st-key-custom_company_next_row {
+        margin-top: 8px;
+    }
+
+    /* ---- Numbered stepper ---- */
+    .st-key-stepper {
+        position: relative;
+        margin-bottom: 1.8rem;
+    }
+    .st-key-stepper::before {
+        content: "";
+        position: absolute;
+        top: 33px;
+        left: 10%;
+        right: 10%;
+        height: 1.5px;
+        background: rgba(148, 163, 184, 0.35);
+        z-index: 0;
+    }
+    .stepper-node {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        margin: 0 auto;
+        position: relative;
+        z-index: 1;
+        background: #fff;
+    }
+    .stepper-node.done {
+        background: #0054A3;
+        color: #fff;
+        border: none;
+    }
+    .stepper-node.current {
+        background: #fff;
+        color: #0054A3;
+        border: 2px solid #0054A3;
+    }
+    .stepper-node.upcoming {
+        background: #fff;
+        color: #9ca3af;
+        border: 2px solid #d1d5db;
+    }
+    .stepper-label {
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #6b7280;
+    }
+    .stepper-label.current {
+        color: #0054A3;
+    }
+
+    .st-key-stepper div.stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        background: #0054A3 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+        position: relative;
+        z-index: 1;
+    }
+    .st-key-stepper div.stButton > button p {
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+    }
+    .st-key-stepper div[data-testid="stElementContainer"]:has(.stepper-node),
+    .st-key-stepper div[data-testid="stElementContainer"]:has(> div.stButton) {
+        height: 34px !important;
     }
 
     /* ---- Buttons ---- */
@@ -72,6 +150,21 @@ CUSTOM_CSS = """
     }
     button[kind="secondaryFormSubmit"]:hover {
         background-color: #97a6c359 !important;
+    }
+
+    /* ---- Company grid */
+    .st-key-company_grid button[kind="secondaryFormSubmit"] {
+        background-color: rgba(148, 163, 184, 0.06) !important;
+        border: 1px solid rgba(148, 163, 184, 0.25) !important;
+        padding: 0.85rem 1.1rem !important;
+        margin-bottom: 0.5rem;
+    }
+    .st-key-company_grid button[kind="secondaryFormSubmit"] > div {
+        justify-content: flex-start !important;
+    }
+    .st-key-company_grid button[kind="secondaryFormSubmit"]:hover {
+        background-color: rgba(28, 131, 255, 0.08) !important;
+        border-color: #0054A3 !important;
     }
 
     /* ---- Score badge ---- */
@@ -108,6 +201,42 @@ def apply_custom_styles():
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
+LOGO_MIME_TYPES = {
+    ".svg": "image/svg+xml",
+}
+
+
+def render_company_logo_styles(company_logo_files: dict):
+    """Swaps each company tile's visible text for its logo image, when one is present.
+
+    Companies without a file in assets/logos/ (see LOGO_DIR) simply keep showing
+    as plain text tiles
+    """
+    rules = []
+    for company, filename in company_logo_files.items():
+        path = LOGO_DIR / filename
+        if not path.exists():
+            continue
+        mime = LOGO_MIME_TYPES.get(path.suffix.lower())
+        if not mime:
+            continue
+        data_uri = f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+        rules.append(
+            f'.st-key-company_btn_{company} button[kind="secondaryFormSubmit"] {{'
+            f'color: transparent !important;'
+            f'background-image: url("{data_uri}");'
+            f'background-repeat: no-repeat;'
+            f'background-position: center;'
+            f'background-size: contain;'
+            f'background-origin: content-box;'
+            f'height: 90px !important;'
+            f'padding: 10px 12px !important;'
+            f"}}"
+        )
+    if rules:
+        st.markdown(f"<style>{''.join(rules)}</style>", unsafe_allow_html=True)
+
+
 def render_header():
     """Renders main application headers."""
     st.markdown('<div class="hero-title">Mock Interview Chatbot</div>', unsafe_allow_html=True)
@@ -118,27 +247,79 @@ def render_header():
     )
 
 
-SETUP_STEP_LABELS = {
-    1: "Personal Information",
+STEP_LABELS = {
+    1: "Personal Info",
     2: "Company",
     3: "Position",
+    4: "Interview",
+    5: "Feedback",
 }
 
 
+def _goto_setup_step(step_num: int):
+    st.session_state.setup_step = step_num
+    if step_num == 2:
+        # Land back on whichever Company sub-screen the user actually used —
+        # "industry" is only ever set by the custom-profile path, so its
+        # presence is what distinguishes "custom" from "select" (which also
+        # covers the "no target company" shortcut, since that starts there).
+        user_data = st.session_state.get("user_data", {})
+        st.session_state.company_option = "custom" if user_data.get("industry") else "select"
+    st.session_state.setup_error = None
+
+
 def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step: int = 1):
-    """Renders the step indicator progress bar across the 5-step flow:
-    Personal Information -> Company -> Position -> Interview -> Feedback.
+    """Renders a 5-node numbered stepper: Personal Info -> Company -> Position ->
+    Interview -> Feedback.
     """
     if feedback_shown:
-        step_label, step_num = "Step 5 of 5 · Feedback", 5
+        current = 5
     elif setup_complete:
-        step_label, step_num = "Step 4 of 5 · Interview", 4
+        current = 4
     else:
-        step_num = setup_step
-        step_label = f"Step {step_num} of 5 · {SETUP_STEP_LABELS.get(step_num, 'Personal Information')}"
+        current = setup_step
 
-    st.markdown(f'<span class="step-pill">{step_label}</span>', unsafe_allow_html=True)
-    st.progress(step_num / 5)
+    in_setup_phase = not setup_complete and not feedback_shown
+
+    with st.container(key="stepper"):
+        if in_setup_phase:
+            # The current node is a clickable button too, but it
+            # should still look outlined/"current" rather than filled/"done" —
+            # override the general clickable-button style for just this one key.
+            st.markdown(
+                f'<style>.st-key-step_nav_{current} div.stButton > button {{'
+                f'background: #fff !important;'
+                f'color: #0054A3 !important;'
+                f'border: 2px solid #0054A3 !important;'
+                f"}}</style>",
+                unsafe_allow_html=True,
+            )
+
+        cols = st.columns(5)
+        for step_num, col in enumerate(cols, start=1):
+            if step_num < current:
+                state = "done"
+            elif step_num == current:
+                state = "current"
+            else:
+                state = "upcoming"
+
+            node_content = "✓" if state == "done" else str(step_num)
+
+            with col:
+                if in_setup_phase and state in ("done", "current"):
+                    st.button(
+                        node_content,
+                        key=f"step_nav_{step_num}",
+                        on_click=_goto_setup_step,
+                        args=(step_num,),
+                        use_container_width=True,
+                    )
+                else:
+                    st.markdown(f'<div class="stepper-node {state}">{node_content}</div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="stepper-label {state}">{STEP_LABELS[step_num]}</div>', unsafe_allow_html=True
+                )
 
 
 def render_evaluation(evaluation):

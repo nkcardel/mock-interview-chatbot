@@ -4,7 +4,14 @@ import streamlit as st
 
 import prompts
 from schemas import InterviewEvaluation
-from ui import apply_custom_styles, render_evaluation, render_header, render_score_badge, render_step_indicator
+from ui import (
+    apply_custom_styles,
+    render_company_logo_styles,
+    render_evaluation,
+    render_header,
+    render_score_badge,
+    render_step_indicator,
+)
 
 # ---------------------------
 # Page Config & Initial Setup
@@ -35,6 +42,8 @@ if "setup_complete" not in st.session_state:
     st.session_state.setup_complete = False
 if "setup_step" not in st.session_state:
     st.session_state.setup_step = 1
+if "company_option" not in st.session_state:
+    st.session_state.company_option = "select"
 if "user_message_count" not in st.session_state:
     st.session_state.user_message_count = 0
 if "feedback_shown" not in st.session_state:
@@ -55,10 +64,39 @@ if "user_data" not in st.session_state:
         "level": "Junior",
         "position": "",
         "company": "",
+        "industry": "",
+        "job_description": "",
+        "job_requirements": "",
     }
 
-COMPANY_PLACEHOLDER = "Select a company..."
+COMPANY_LOGO_FILES = {
+    "Meta": "meta.svg",
+    "Google": "google.svg",
+    "LinkedIn": "linkedin.svg",
+    "Spotify": "spotify.svg",
+    "IBM": "ibm.svg",
+    "Microsoft": "microsoft.svg",
+    "Apple": "apple.svg",
+    "Samsung": "samsung.svg",
+    "Amazon": "amazon.svg",
+    "Accenture": "accenture.svg",
+}
+COMPANY_OPTIONS = tuple(COMPANY_LOGO_FILES.keys())
 POSITION_PLACEHOLDER = "Select a position..."
+INDUSTRY_PLACEHOLDER = "Select an industry..."
+INDUSTRY_OPTIONS = (
+    INDUSTRY_PLACEHOLDER,
+    "Technology",
+    "Finance & Banking",
+    "Healthcare",
+    "Retail & E-commerce",
+    "Manufacturing",
+    "Education",
+    "Consulting",
+    "Media & Entertainment",
+    "Government & Public Sector",
+    "Other",
+)
 REQUIRED_FIELD_ERROR = "Please fill in all required fields."
 
 
@@ -78,14 +116,50 @@ def advance_to_company():
     st.session_state.setup_step = 2
 
 
-def advance_to_position():
-    company = st.session_state.get("input_company", COMPANY_PLACEHOLDER)
-    st.session_state.user_data["company"] = "" if company == COMPANY_PLACEHOLDER else company
+def choose_generic_company():
+    st.session_state.user_data["company"] = ""
+    st.session_state.user_data["industry"] = ""
+    st.session_state.user_data["job_description"] = ""
+    st.session_state.user_data["job_requirements"] = ""
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 3
 
-    if company == COMPANY_PLACEHOLDER:
+
+def go_to_custom_company():
+    if not st.session_state.user_data["industry"]:
+        st.session_state.user_data["company"] = ""
+    st.session_state.setup_error = None
+    st.session_state.company_option = "custom"
+
+
+def select_predefined_company(company):
+    st.session_state.user_data["company"] = company
+    st.session_state.user_data["industry"] = ""
+    st.session_state.user_data["job_description"] = ""
+    st.session_state.user_data["job_requirements"] = ""
+    st.session_state.setup_error = None
+    st.session_state.setup_step = 3
+
+
+def back_to_select():
+    st.session_state.setup_error = None
+    st.session_state.company_option = "select"
+
+
+def advance_to_position_from_custom():
+    industry = st.session_state.get("input_industry", INDUSTRY_PLACEHOLDER)
+    company_name = st.session_state.get("input_custom_company", "").strip()
+    job_description = st.session_state.get("input_job_description", "")
+    job_requirements = st.session_state.get("input_job_requirements", "")
+
+    if industry == INDUSTRY_PLACEHOLDER or not company_name:
         st.session_state.setup_error = REQUIRED_FIELD_ERROR
         return
 
+    st.session_state.user_data["company"] = company_name
+    st.session_state.user_data["industry"] = industry
+    st.session_state.user_data["job_description"] = job_description
+    st.session_state.user_data["job_requirements"] = job_requirements
     st.session_state.setup_error = None
     st.session_state.setup_step = 3
 
@@ -103,16 +177,6 @@ def complete_setup():
     st.session_state.setup_complete = True
 
 
-def back_to_personal_info():
-    st.session_state.setup_error = None
-    st.session_state.setup_step = 1
-
-
-def back_to_company():
-    st.session_state.setup_error = None
-    st.session_state.setup_step = 2
-
-
 def show_feedback():
     st.session_state.feedback_shown = True
 
@@ -121,6 +185,7 @@ def reset_interview():
     """Reset all interview progress and return to Step 1."""
     st.session_state.setup_complete = False
     st.session_state.setup_step = 1
+    st.session_state.company_option = "select"
     st.session_state.chat_complete = False
     st.session_state.feedback_shown = False
     st.session_state.user_message_count = 0
@@ -132,6 +197,9 @@ def reset_interview():
         "level": "Junior",
         "position": "",
         "company": "",
+        "industry": "",
+        "job_description": "",
+        "job_requirements": "",
     }
     st.session_state.setup_error = None
 
@@ -155,7 +223,6 @@ if not st.session_state.setup_complete:
     if st.session_state.setup_step == 1:
         with st.form("personal_info_form"):
             st.subheader("Personal Information")
-            st.caption("All fields are required.")
             if st.session_state.setup_error:
                 st.error(st.session_state.setup_error, icon="⚠️")
 
@@ -180,49 +247,121 @@ if not st.session_state.setup_complete:
                 value=saved["skills"],
                 placeholder="List your skills",
             )
-            _, next_col = st.columns([5.15, 1])
-            with next_col:
-                st.form_submit_button("Next →", type="primary", on_click=advance_to_company, use_container_width=True)
+            with st.container(key="personal_info_next_row"):
+                _, next_col = st.columns([5.15, 1])
+                with next_col:
+                    st.form_submit_button(
+                        "Next", type="primary", on_click=advance_to_company, use_container_width=True
+                    )
 
-    elif st.session_state.setup_step == 2:
-        with st.form("company_form"):
-            st.subheader("Company")
-            st.caption("All fields are required.")
+    elif st.session_state.setup_step == 2 and st.session_state.company_option == "select":
+        with st.form("company_select_form"):
+            st.subheader("Specific Company")
+            st.caption("Click a company to continue.")
             if st.session_state.setup_error:
                 st.error(st.session_state.setup_error, icon="⚠️")
 
-            company_options = (
-                COMPANY_PLACEHOLDER,
-                "Amazon",
-                "Meta",
-                "Udemy",
-                "365 Company",
-                "Nestle",
-                "LinkedIn",
-                "Spotify",
+            # Each company is its own clickable container
+            render_company_logo_styles(COMPANY_LOGO_FILES)
+            if saved["company"] in COMPANY_OPTIONS:
+                # Highlight whichever tile the user picked on a previous visit to this
+                # screen, so coming back via the stepper shows their prior choice.
+                st.markdown(
+                    f'<style>.st-key-company_btn_{saved["company"]} button[kind="secondaryFormSubmit"] {{'
+                    f'border: 2px solid #0054A3 !important;'
+                    f'background-color: rgba(28, 131, 255, 0.10) !important;'
+                    f"}}</style>",
+                    unsafe_allow_html=True,
+                )
+            with st.container(key="company_grid"):
+                grid_cols = st.columns(2)
+                for i, company in enumerate(COMPANY_OPTIONS):
+                    with grid_cols[i % 2]:
+                        st.form_submit_button(
+                            company,
+                            key=f"company_btn_{company}",
+                            type="secondary",
+                            on_click=select_predefined_company,
+                            args=(company,),
+                            use_container_width=True,
+                        )
+
+            st.markdown(
+                '<div style="display:flex; align-items:center; justify-content:center; margin: 0.8rem 0;">'
+                '<div style="width:180px; height:1px; background:rgba(148,163,184,0.35);"></div>'
+                '<span style="padding:0 0.8rem; color:#6b7280; font-size:0.85rem;">or</span>'
+                '<div style="width:180px; height:1px; background:rgba(148,163,184,0.35);"></div>'
+                '</div>',
+                unsafe_allow_html=True,
             )
-            company_index = company_options.index(saved["company"]) if saved["company"] in company_options else 0
+            custom_col, no_company_col = st.columns([1, 1])
+            with custom_col:
+                st.form_submit_button(
+                    "Create a custom company profile",
+                    type="secondary",
+                    on_click=go_to_custom_company,
+                    use_container_width=True,
+                )
+            with no_company_col:
+                st.form_submit_button(
+                    "No target company",
+                    type="secondary",
+                    on_click=choose_generic_company,
+                    use_container_width=True,
+                )
+
+    elif st.session_state.setup_step == 2 and st.session_state.company_option == "custom":
+        with st.form("company_custom_form"):
+            st.subheader("Custom Company")
+            st.caption("Create a specific company profile.")
+            if st.session_state.setup_error:
+                st.error(st.session_state.setup_error, icon="⚠️")
+
+            industry_index = (
+                INDUSTRY_OPTIONS.index(saved["industry"]) if saved["industry"] in INDUSTRY_OPTIONS else 0
+            )
             st.selectbox(
-                "Choose a company *",
-                company_options,
-                index=company_index,
-                key="input_company",
+                "Target Industry *",
+                INDUSTRY_OPTIONS,
+                index=industry_index,
+                key="input_industry",
+            )
+            st.text_input(
+                label="Company Name *",
+                max_chars=60,
+                key="input_custom_company",
+                value=saved["company"],
+                placeholder="e.g. Acme Corp",
+            )
+            st.text_area(
+                label="Job Description (optional)",
+                key="input_job_description",
+                max_chars=500,
+                value=saved["job_description"],
+                placeholder="Paste or describe the job posting",
+            )
+            st.text_area(
+                label="Job Requirements (optional)",
+                key="input_job_requirements",
+                max_chars=500,
+                value=saved["job_requirements"],
+                placeholder="List specific requirements for the role",
             )
 
-            # Only st.form_submit_button (not st.button) is allowed inside a form, but a
-            # form can hold more than one — so Back and Next both live here, side by side.
-            _, back_col, next_col = st.columns([4, 1, 1])
-            with back_col:
-                st.form_submit_button("← Back", type="secondary", on_click=back_to_personal_info, use_container_width=True)
-            with next_col:
-                st.form_submit_button(
-                    "Next →", type="primary", on_click=advance_to_position, use_container_width=True
-                )
+            with st.container(key="custom_company_next_row"):
+                _, back_col, next_col = st.columns([4, 1, 1])
+                with back_col:
+                    st.form_submit_button(
+                        "Back", type="secondary", on_click=back_to_select, use_container_width=True
+                    )
+                with next_col:
+                    st.form_submit_button(
+                        "Next", type="primary", on_click=advance_to_position_from_custom, use_container_width=True
+                    )
 
     elif st.session_state.setup_step == 3:
         with st.form("position_form"):
             st.subheader("Position")
-            st.caption("All fields are required.")
             if st.session_state.setup_error:
                 st.error(st.session_state.setup_error, icon="⚠️")
 
@@ -259,12 +398,10 @@ if not st.session_state.setup_complete:
 
             st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
 
-            _, back_col, next_col = st.columns([3, 0.86, 1.3])
-            with back_col:
-                st.form_submit_button("← Back", type="secondary", on_click=back_to_company, use_container_width=True)
+            _, next_col = st.columns([5, 1.5])
             with next_col:
                 st.form_submit_button(
-                    "Start Interview →", type="primary", on_click=complete_setup, use_container_width=True
+                    "Start Interview", type="primary", on_click=complete_setup, use_container_width=True
                 )
 
 # ---------------------------
@@ -274,9 +411,10 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
     data = st.session_state.user_data
 
     # Updated HTML card to include user's Experience and Skills
+    company_suffix = f' at <b>{data["company"]}</b>' if data["company"] else ""
     st.markdown(
         f'<div class="card">'
-        f'💼 Interviewing for <b>{data["level"]} {data["position"]}</b> at <b>{data["company"]}</b>'
+        f'💼 Interviewing for <b>{data["level"]} {data["position"]}</b>{company_suffix}'
         f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
         f'<b>🧠 Experience:</b> {data["experience"] or "None provided"}<br/>'
         f'<b>🛠️ Skills:</b> {data["skills"] or "None provided"}'
@@ -297,6 +435,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                     data["level"],
                     data["position"],
                     data["company"],
+                    data["industry"],
+                    data["job_description"],
+                    data["job_requirements"],
                 ),
             }
         ]
@@ -363,7 +504,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
 
     elif st.session_state.chat_complete:
         st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
-        st.button("Get Feedback →", type="primary", on_click=show_feedback, key="btn_feedback")
+        st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
 
 # ---------------------------
 # Step 5: Feedback Phase
