@@ -18,7 +18,7 @@ from ui import (
 # Page Config & Initial Setup
 # ---------------------------
 st.set_page_config(
-    page_title="Mock Interview Chatbot",
+    page_title="Mock Job Interview Chatbot",
     page_icon="🤖",
     layout="centered",
 )
@@ -64,7 +64,7 @@ if "user_data" not in st.session_state:
         "name": "",
         "experience": "",
         "skills": "",
-        "level": "Junior",
+        "level": "",
         "position": "",
         "company": "",
         "industry": "",
@@ -86,6 +86,30 @@ COMPANY_LOGO_FILES = {
 }
 COMPANY_OPTIONS = tuple(COMPANY_LOGO_FILES.keys())
 POSITION_PLACEHOLDER = "Select a position"
+POSITION_OPTIONS = (
+    POSITION_PLACEHOLDER,
+    "Accountant",
+    "Administrative Assistant",
+    "Business Development Manager",
+    "Content Strategist",
+    "Customer Success Manager",
+    "Customer Support Specialist",
+    "Data Engineer",
+    "Data Scientist",
+    "Financial Analyst",
+    "Human Resources Manager",
+    "Legal Counsel",
+    "Marketing Manager",
+    "Operations Manager",
+    "Product Manager",
+    "Recruiter",
+    "Sales Representative",
+    "Software Engineer",
+    "Supply Chain Analyst",
+    "UX/UI Designer",
+    "Other",
+)
+OTHER_POSITION_OPTION = "Other"
 INDUSTRY_PLACEHOLDER = "Select an industry"
 INDUSTRY_OPTIONS = (
     INDUSTRY_PLACEHOLDER,
@@ -197,16 +221,30 @@ def advance_to_position_from_custom():
     st.session_state.setup_step = 3
 
 
+def select_level(level):
+    if st.session_state.user_data["level"] == level:
+        st.session_state.user_data["level"] = ""
+    else:
+        st.session_state.user_data["level"] = level
+
+
 def complete_setup():
     position = st.session_state.get("input_position", POSITION_PLACEHOLDER)
-    st.session_state.user_data["level"] = st.session_state.get("input_level", "Junior")
-    st.session_state.user_data["position"] = "" if position == POSITION_PLACEHOLDER else position
+    custom_position = st.session_state.get("input_custom_position", "").strip()
 
+    missing = set()
     if position == POSITION_PLACEHOLDER:
+        missing.add("input_position")
+    elif position == OTHER_POSITION_OPTION and not custom_position:
+        missing.add("input_position")
+        missing.add("input_custom_position")
+
+    if missing:
         st.session_state.setup_error = REQUIRED_FIELD_ERROR
-        st.session_state.invalid_fields = {"input_position"}
+        st.session_state.invalid_fields = missing
         return
 
+    st.session_state.user_data["position"] = custom_position if position == OTHER_POSITION_OPTION else position
     st.session_state.setup_error = None
     st.session_state.invalid_fields = set()
     st.session_state.setup_complete = True
@@ -229,7 +267,7 @@ def reset_interview():
         "name": "",
         "experience": "",
         "skills": "",
-        "level": "Junior",
+        "level": "",
         "position": "",
         "company": "",
         "industry": "",
@@ -259,6 +297,12 @@ if not st.session_state.setup_complete:
     if st.session_state.setup_step == 1:
         with st.form("personal_info_form"):
             st.subheader("Personal Information")
+            with st.container(key="step_caption"):
+                st.caption(
+                    "You're about to practice a mock job interview with an AI interviewer. "
+                    "Fill in your name, experience, and skills below so the questions can be "
+                    "tailored to you."
+                )
             if st.session_state.setup_error:
                 with st.container(key="required_field_error"):
                     st.error(st.session_state.setup_error)
@@ -276,14 +320,14 @@ if not st.session_state.setup_complete:
                 key="input_experience",
                 max_chars=200,
                 value=saved["experience"],
-                placeholder="Describe your experience",
+                placeholder="Describe your experience (e.g. 3 years in software development)",
             )
             st.text_area(
                 label="Skills *",
                 key="input_skills",
                 max_chars=200,
                 value=saved["skills"],
-                placeholder="List your skills",
+                placeholder="List your skills (e.g. Python, Data Analysis, Project Management)",
             )
             with st.container(key="personal_info_next_row"):
                 _, next_col = st.columns([5.15, 1])
@@ -295,7 +339,12 @@ if not st.session_state.setup_complete:
     elif st.session_state.setup_step == 2 and st.session_state.company_option == "select":
         with st.form("company_select_form"):
             st.subheader("Specific Company")
-            st.caption("Click a company to continue.")
+            with st.container(key="step_caption"):
+                st.caption(
+                    "Pick the company you're interviewing with so the questions match how it "
+                    "actually interviews, or skip this using the options below to practice with "
+                    "a generic interview instead."
+                )
             if st.session_state.setup_error:
                 with st.container(key="required_field_error"):
                     st.error(st.session_state.setup_error)
@@ -353,7 +402,12 @@ if not st.session_state.setup_complete:
     elif st.session_state.setup_step == 2 and st.session_state.company_option == "custom":
         with st.container(key="company_custom_wrapper"):
             st.subheader("Custom Company")
-            st.caption("Create a specific company profile.")
+            with st.container(key="step_caption"):
+                st.caption(
+                    "Tell us the industry and company name — and optionally paste the job "
+                    "posting and its requirements — so the interview questions can be tailored "
+                    "to this specific role."
+                )
             if st.session_state.setup_error:
                 with st.container(key="required_field_error"):
                     st.error(st.session_state.setup_error)
@@ -422,51 +476,77 @@ if not st.session_state.setup_complete:
                         )
 
     elif st.session_state.setup_step == 3:
-        with st.form("position_form"):
+        with st.container(key="position_wrapper"):
             st.subheader("Position")
+            with st.container(key="step_caption"):
+                st.caption(
+                    "Choose your experience level and the job role you're practicing for — "
+                    "this decides how hard the questions are and what topics they cover."
+                )
             if st.session_state.setup_error:
                 with st.container(key="required_field_error"):
                     st.error(st.session_state.setup_error)
                 render_invalid_field_borders(st.session_state.invalid_fields)
-
-            col1, col2 = st.columns(2)
-            with col1:
-                level_options = ["Junior", "Mid-level", "Senior"]
-                st.radio(
-                    "Choose a level",
-                    key="input_level",
-                    options=level_options,
-                    index=level_options.index(saved["level"]),
-                )
-            with col2:
-                position_options = (
-                    POSITION_PLACEHOLDER,
-                    "Data Scientist",
-                    "Data Engineer",
-                    "AI Strategist",
-                    "AI Developer",
-                    "AI Engineer",
-                    "ML Engineer",
-                    "BI Analyst",
-                    "Financial Analyst",
-                )
-                position_index = (
-                    position_options.index(saved["position"]) if saved["position"] in position_options else 0
-                )
-                st.selectbox(
-                    "Choose a position *",
-                    position_options,
-                    index=position_index,
-                    key="input_position",
+                
+            level_options = ["Junior", "Mid-level", "Senior"]
+            level_highlight_style = ""
+            if saved["level"] in level_options:
+                # Highlight whichever tile is currently selected
+                level_highlight_style = (
+                    f'<style>.st-key-level_btn_{saved["level"]} button[kind="secondary"] {{'
+                    f'border: 2px solid #0054A3 !important;'
+                    f'background-color: rgba(28, 131, 255, 0.10) !important;'
+                    f"}}</style>"
                 )
 
-            st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
+            st.markdown(
+                '<p style="font-size:14px; font-weight:400; color:rgb(49,51,63); '
+                f'margin-bottom:0;">Choose a level (Optional)</p>{level_highlight_style}',
+                unsafe_allow_html=True,
+            )
+            with st.container(key="level_grid"):
+                level_cols = st.columns(3)
+                for i, level in enumerate(level_options):
+                    with level_cols[i]:
+                        st.button(
+                            level,
+                            key=f"level_btn_{level}",
+                            type="secondary",
+                            on_click=select_level,
+                            args=(level,),
+                            use_container_width=True,
+                        )
 
-            _, next_col = st.columns([5, 1.5])
-            with next_col:
-                st.form_submit_button(
-                    "Start Interview", type="primary", on_click=complete_setup, use_container_width=True
+            position_is_custom = bool(saved["position"]) and saved["position"] not in POSITION_OPTIONS
+            position_index = (
+                POSITION_OPTIONS.index(OTHER_POSITION_OPTION)
+                if position_is_custom
+                else (POSITION_OPTIONS.index(saved["position"]) if saved["position"] in POSITION_OPTIONS else 0)
+            )
+            st.selectbox(
+                "Choose a position *",
+                POSITION_OPTIONS,
+                index=position_index,
+                key="input_position",
+            )
+            if st.session_state.get("input_position") == OTHER_POSITION_OPTION:
+                st.text_input(
+                    label="Custom position",
+                    label_visibility="collapsed",
+                    max_chars=60,
+                    key="input_custom_position",
+                    value=saved["position"] if position_is_custom else "",
+                    placeholder="Please specify your position (e.g. Product Marketing Manager)",
                 )
+
+            with st.form("position_form"):
+                st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
+
+                _, next_col = st.columns([5, 1.5])
+                with next_col:
+                    st.form_submit_button(
+                        "Start Interview", type="primary", on_click=complete_setup, use_container_width=True
+                    )
 
 # ---------------------------
 # Step 4: Interview Phase
@@ -476,9 +556,10 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
 
     # Updated HTML card to include user's Experience and Skills
     company_suffix = f' at <b>{data["company"]}</b>' if data["company"] else ""
+    level_prefix = f'{data["level"]} ' if data["level"] else ""
     st.markdown(
         f'<div class="card">'
-        f'💼 Interviewing for <b>{data["level"]} {data["position"]}</b>{company_suffix}'
+        f'💼 Interviewing for <b>{level_prefix}{data["position"]}</b>{company_suffix}'
         f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
         f'<b>🧠 Experience:</b> {data["experience"] or "None provided"}<br/>'
         f'<b>🛠️ Skills:</b> {data["skills"] or "None provided"}'
@@ -575,6 +656,11 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
 # ---------------------------
 if st.session_state.feedback_shown:
     st.subheader("📋 Feedback")
+    with st.container(key="step_caption"):
+        st.caption(
+            "Here's how you did: a score and critique for each answer, plus your overall "
+            "strengths and areas to improve."
+        )
 
     if "feedback_data" not in st.session_state:
         feedback_client = get_openai_client()

@@ -1,4 +1,4 @@
-# Mock Interview Chatbot
+# Mock Job Interview Chatbot
 
 A Streamlit interview-practice chatbot with structured-output scoring and a dedicated LLM evaluation suite — built with the OpenAI API, Pydantic, and pytest.
 
