@@ -1,5 +1,31 @@
 [theme]
 primaryColor = "#0054A3"
+font = "Poppins"
+
+[[theme.fontFaces]]
+family = "Poppins"
+url = "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJfecg.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Poppins"
+url = "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLGT9Z1xlFQ.woff2"
+weight = 500
+
+[[theme.fontFaces]]
+family = "Poppins"
+url = "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFQ.woff2"
+weight = 600
+
+[[theme.fontFaces]]
+family = "Poppins"
+url = "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFQ.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Poppins"
+url = "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLDD4Z1xlFQ.woff2"
+weight = 800
 
 [client]
 toolbarMode = "minimal"

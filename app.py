@@ -9,6 +9,7 @@ from ui import (
     render_company_logo_styles,
     render_evaluation,
     render_header,
+    render_invalid_field_borders,
     render_score_badge,
     render_step_indicator,
 )
@@ -54,6 +55,8 @@ if "chat_complete" not in st.session_state:
     st.session_state.chat_complete = False
 if "setup_error" not in st.session_state:
     st.session_state.setup_error = None
+if "invalid_fields" not in st.session_state:
+    st.session_state.invalid_fields = set()
 
 # Store finalized values safely outside form widget lifecycle
 if "user_data" not in st.session_state:
@@ -82,8 +85,8 @@ COMPANY_LOGO_FILES = {
     "Accenture": "accenture.svg",
 }
 COMPANY_OPTIONS = tuple(COMPANY_LOGO_FILES.keys())
-POSITION_PLACEHOLDER = "Select a position..."
-INDUSTRY_PLACEHOLDER = "Select an industry..."
+POSITION_PLACEHOLDER = "Select a position"
+INDUSTRY_PLACEHOLDER = "Select an industry"
 INDUSTRY_OPTIONS = (
     INDUSTRY_PLACEHOLDER,
     "Technology",
@@ -97,6 +100,7 @@ INDUSTRY_OPTIONS = (
     "Government & Public Sector",
     "Other",
 )
+OTHER_INDUSTRY_OPTION = "Other"
 REQUIRED_FIELD_ERROR = "Please fill in all required fields."
 
 
@@ -108,11 +112,22 @@ def advance_to_company():
     st.session_state.user_data["experience"] = experience
     st.session_state.user_data["skills"] = skills
 
-    if not (name.strip() and experience.strip() and skills.strip()):
+    missing = {
+        field
+        for field, value in {
+            "input_name": name,
+            "input_experience": experience,
+            "input_skills": skills,
+        }.items()
+        if not value.strip()
+    }
+    if missing:
         st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        st.session_state.invalid_fields = missing
         return
 
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.setup_step = 2
 
 
@@ -122,6 +137,7 @@ def choose_generic_company():
     st.session_state.user_data["job_description"] = ""
     st.session_state.user_data["job_requirements"] = ""
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.setup_step = 3
 
 
@@ -129,6 +145,7 @@ def go_to_custom_company():
     if not st.session_state.user_data["industry"]:
         st.session_state.user_data["company"] = ""
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.company_option = "custom"
 
 
@@ -138,29 +155,45 @@ def select_predefined_company(company):
     st.session_state.user_data["job_description"] = ""
     st.session_state.user_data["job_requirements"] = ""
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.setup_step = 3
 
 
 def back_to_select():
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.company_option = "select"
 
 
 def advance_to_position_from_custom():
     industry = st.session_state.get("input_industry", INDUSTRY_PLACEHOLDER)
+    custom_industry = st.session_state.get("input_custom_industry", "").strip()
     company_name = st.session_state.get("input_custom_company", "").strip()
     job_description = st.session_state.get("input_job_description", "")
     job_requirements = st.session_state.get("input_job_requirements", "")
 
-    if industry == INDUSTRY_PLACEHOLDER or not company_name:
+    missing = set()
+    if industry == INDUSTRY_PLACEHOLDER:
+        missing.add("input_industry")
+    elif industry == OTHER_INDUSTRY_OPTION and not custom_industry:
+        # The Target Industry selectbox mirrors the custom industry text
+        # input's error state whenever that field is showing.
+        missing.add("input_industry")
+        missing.add("input_custom_industry")
+    if not company_name:
+        missing.add("input_custom_company")
+
+    if missing:
         st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        st.session_state.invalid_fields = missing
         return
 
     st.session_state.user_data["company"] = company_name
-    st.session_state.user_data["industry"] = industry
+    st.session_state.user_data["industry"] = custom_industry if industry == OTHER_INDUSTRY_OPTION else industry
     st.session_state.user_data["job_description"] = job_description
     st.session_state.user_data["job_requirements"] = job_requirements
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.setup_step = 3
 
 
@@ -171,9 +204,11 @@ def complete_setup():
 
     if position == POSITION_PLACEHOLDER:
         st.session_state.setup_error = REQUIRED_FIELD_ERROR
+        st.session_state.invalid_fields = {"input_position"}
         return
 
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
     st.session_state.setup_complete = True
 
 
@@ -202,6 +237,7 @@ def reset_interview():
         "job_requirements": "",
     }
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
 
     # Remove cached feedback if it exists
     if "feedback_data" in st.session_state:
@@ -224,7 +260,9 @@ if not st.session_state.setup_complete:
         with st.form("personal_info_form"):
             st.subheader("Personal Information")
             if st.session_state.setup_error:
-                st.error(st.session_state.setup_error, icon="⚠️")
+                with st.container(key="required_field_error"):
+                    st.error(st.session_state.setup_error)
+                render_invalid_field_borders(st.session_state.invalid_fields)
 
             st.text_input(
                 label="Name *",
@@ -259,7 +297,9 @@ if not st.session_state.setup_complete:
             st.subheader("Specific Company")
             st.caption("Click a company to continue.")
             if st.session_state.setup_error:
-                st.error(st.session_state.setup_error, icon="⚠️")
+                with st.container(key="required_field_error"):
+                    st.error(st.session_state.setup_error)
+                render_invalid_field_borders(st.session_state.invalid_fields)
 
             # Each company is its own clickable container
             render_company_logo_styles(COMPANY_LOGO_FILES)
@@ -311,14 +351,22 @@ if not st.session_state.setup_complete:
                 )
 
     elif st.session_state.setup_step == 2 and st.session_state.company_option == "custom":
-        with st.form("company_custom_form"):
+        with st.container(key="company_custom_wrapper"):
             st.subheader("Custom Company")
             st.caption("Create a specific company profile.")
             if st.session_state.setup_error:
-                st.error(st.session_state.setup_error, icon="⚠️")
+                with st.container(key="required_field_error"):
+                    st.error(st.session_state.setup_error)
+                render_invalid_field_borders(st.session_state.invalid_fields)
 
+            # Rendered outside the form below so picking "Other" reveals the
+            # follow-up field immediately: st.form only reruns on submit, and
+            # Streamlit disallows on_change callbacks on widgets inside a form.
+            industry_is_custom = bool(saved["industry"]) and saved["industry"] not in INDUSTRY_OPTIONS
             industry_index = (
-                INDUSTRY_OPTIONS.index(saved["industry"]) if saved["industry"] in INDUSTRY_OPTIONS else 0
+                INDUSTRY_OPTIONS.index(OTHER_INDUSTRY_OPTION)
+                if industry_is_custom
+                else (INDUSTRY_OPTIONS.index(saved["industry"]) if saved["industry"] in INDUSTRY_OPTIONS else 0)
             )
             st.selectbox(
                 "Target Industry *",
@@ -326,44 +374,60 @@ if not st.session_state.setup_complete:
                 index=industry_index,
                 key="input_industry",
             )
-            st.text_input(
-                label="Company Name *",
-                max_chars=60,
-                key="input_custom_company",
-                value=saved["company"],
-                placeholder="e.g. Acme Corp",
-            )
-            st.text_area(
-                label="Job Description (optional)",
-                key="input_job_description",
-                max_chars=500,
-                value=saved["job_description"],
-                placeholder="Paste or describe the job posting",
-            )
-            st.text_area(
-                label="Job Requirements (optional)",
-                key="input_job_requirements",
-                max_chars=500,
-                value=saved["job_requirements"],
-                placeholder="List specific requirements for the role",
-            )
+            if st.session_state.get("input_industry") == OTHER_INDUSTRY_OPTION:
+                st.text_input(
+                    label="Custom industry",
+                    label_visibility="collapsed",
+                    max_chars=60,
+                    key="input_custom_industry",
+                    value=saved["industry"] if industry_is_custom else "",
+                    placeholder="Please specify your industry (e.g. Real Estate)",
+                )
 
-            with st.container(key="custom_company_next_row"):
-                _, back_col, next_col = st.columns([4, 1, 1])
-                with back_col:
-                    st.form_submit_button(
-                        "Back", type="secondary", on_click=back_to_select, use_container_width=True
-                    )
-                with next_col:
-                    st.form_submit_button(
-                        "Next", type="primary", on_click=advance_to_position_from_custom, use_container_width=True
-                    )
+            with st.form("company_custom_form"):
+                st.text_input(
+                    label="Company Name *",
+                    max_chars=60,
+                    key="input_custom_company",
+                    value=saved["company"],
+                    placeholder="e.g. Google",
+                )
+                st.text_area(
+                    label="Job Description (Optional)",
+                    key="input_job_description",
+                    max_chars=500,
+                    value=saved["job_description"],
+                    placeholder="Paste or describe the job posting",
+                )
+                st.text_area(
+                    label="Job Requirements (Optional)",
+                    key="input_job_requirements",
+                    max_chars=500,
+                    value=saved["job_requirements"],
+                    placeholder="List specific requirements for the role",
+                )
+
+                with st.container(key="custom_company_next_row"):
+                    _, back_col, next_col = st.columns([4, 1, 1])
+                    with back_col:
+                        st.form_submit_button(
+                            "Back", type="secondary", on_click=back_to_select, use_container_width=True
+                        )
+                    with next_col:
+                        st.form_submit_button(
+                            "Next",
+                            type="primary",
+                            on_click=advance_to_position_from_custom,
+                            use_container_width=True,
+                        )
 
     elif st.session_state.setup_step == 3:
         with st.form("position_form"):
             st.subheader("Position")
             if st.session_state.setup_error:
-                st.error(st.session_state.setup_error, icon="⚠️")
+                with st.container(key="required_field_error"):
+                    st.error(st.session_state.setup_error)
+                render_invalid_field_borders(st.session_state.invalid_fields)
 
             col1, col2 = st.columns(2)
             with col1:
