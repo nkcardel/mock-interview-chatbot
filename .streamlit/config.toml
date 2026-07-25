@@ -1,2 +1,8 @@
 [theme]
 primaryColor = "#0054A3"
+
+[client]
+toolbarMode = “minimal”
+
+[ui]
+hideTopBar = true
