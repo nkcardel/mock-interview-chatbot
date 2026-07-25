@@ -14,7 +14,9 @@ def get_interviewer_system_prompt(
     job_requirements: str = "",
 ) -> str:
     """Generates the initial system prompt for the AI interviewer."""
-    role_lines = [f"- Level: {level}", f"- Position: {position}"]
+    role_lines = [f"- Position: {position}"]
+    if level:
+        role_lines.insert(0, f"- Level: {level}")
     if company:
         role_lines.append(f"- Company: {company}")
     if industry:
@@ -24,7 +26,8 @@ def get_interviewer_system_prompt(
     if job_requirements:
         role_lines.append(f"- Job Requirements: {job_requirements}")
 
-    role_context = f"the {level} {position} role at {company}" if company else f"a {level} {position} role"
+    leveled_position = f"{level} {position}" if level else position
+    role_context = f"the {leveled_position} role at {company}" if company else f"a {leveled_position} role"
 
     return (
         "You are an experienced HR executive conducting a realistic job interview. "

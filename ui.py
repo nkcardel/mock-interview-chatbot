@@ -78,9 +78,22 @@ CUSTOM_CSS = """
         border: none !important;
         padding: 0 !important;
     }
+    .st-key-position_wrapper {
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        border-radius: 8px;
+        padding: 1.78rem;
+    }
+    .st-key-position_wrapper div[data-testid="stForm"] {
+        border: none !important;
+        padding: 0 !important;
+    }
     .st-key-personal_info_next_row,
     .st-key-custom_company_next_row {
         margin-top: 8px;
+    }
+    .st-key-step_caption {
+        margin-top: -10px !important;
+        margin-bottom: 0 !important;
     }
 
     /* ---- Required-field error banner: custom warning icon, mask-colored to match the alert text ---- */
@@ -149,6 +162,9 @@ CUSTOM_CSS = """
         color: #9ca3af;
         border: 2px solid #d1d5db;
     }
+    .st-key-stepper:not(:has(div.stButton)) .stepper-node {
+        margin-top: 16px !important;
+    }
     .stepper-label {
         text-align: center;
         font-size: 0.72rem;
@@ -183,6 +199,9 @@ CUSTOM_CSS = """
     .st-key-stepper div[data-testid="stElementContainer"]:has(> div.stButton) {
         height: 34px !important;
     }
+    .st-key-stepper:not(:has(div.stButton)) div[data-testid="stElementContainer"]:has(.stepper-node) {
+        height: 50px !important;
+    }
 
     /* ---- Buttons ---- */
     /* Base button sizing & typography for all buttons */
@@ -214,6 +233,18 @@ CUSTOM_CSS = """
         justify-content: flex-start !important;
     }
     .st-key-company_grid button[kind="secondaryFormSubmit"]:hover {
+        background-color: rgba(28, 131, 255, 0.08) !important;
+        border-color: #0054A3 !important;
+    }
+    .st-key-level_grid {
+        margin-top: 5px !important;
+    }
+    .st-key-level_grid button[kind="secondary"] {
+        background-color: rgba(148, 163, 184, 0.06) !important;
+        border: 1px solid rgba(148, 163, 184, 0.25) !important;
+        padding: 0.85rem 1.1rem !important;
+    }
+    .st-key-level_grid button[kind="secondary"]:hover {
         background-color: rgba(28, 131, 255, 0.08) !important;
         border-color: #0054A3 !important;
     }
@@ -327,6 +358,12 @@ def render_invalid_field_borders(field_keys):
                         const industryTarget = industryContainer && industryContainer.querySelector(targetSelector);
                         if (industryTarget) industryTarget.classList.remove('field-invalid');
                     }}
+
+                    if (key === 'input_custom_position') {{
+                        const positionContainer = doc.querySelector('.st-key-input_position');
+                        const positionTarget = positionContainer && positionContainer.querySelector(targetSelector);
+                        if (positionTarget) positionTarget.classList.remove('field-invalid');
+                    }}
                 }};
                 interactive.addEventListener('focus', clearError);
                 interactive.addEventListener('input', clearError);
@@ -388,7 +425,7 @@ def render_company_logo_styles(company_logo_files: dict):
 
 def render_header():
     """Renders main application headers."""
-    st.markdown('<div class="hero-title">Mock Interview Chatbot</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-title">Mock Job Interview Chatbot</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="hero-subtitle">Practice a realistic role-specific interview and get structured, '
         'question-by-question feedback.</div>',

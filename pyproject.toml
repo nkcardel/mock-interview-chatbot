@@ -1,7 +1,7 @@
 [project]
 name = "mock-interview-chatbot"
 version = "0.1.0"
-description = "Streamlit mock interview chatbot with structured-output feedback scoring."
+description = "Streamlit mock job interview chatbot with structured-output feedback scoring."
 requires-python = ">=3.10"
 dependencies = [
     "streamlit>=1.37,<2",
