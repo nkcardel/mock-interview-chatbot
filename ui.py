@@ -1,10 +1,21 @@
 import base64
 import html
+import json
+import time
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 LOGO_DIR = Path(__file__).parent / "assets" / "logos"
+ICON_DIR = Path(__file__).parent / "assets" / "icons"
+
+
+def _svg_data_uri(path: Path) -> str:
+    return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
+
+REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
 
 CUSTOM_CSS = """
 <style>
@@ -14,7 +25,7 @@ CUSTOM_CSS = """
 
     /* ---- Typography & base spacing ---- */
     html, body, [class*="css"]  {
-        font-family: "Inter", "Source Sans Pro", sans-serif;
+        font-family: "Poppins", sans-serif;
     }
     .block-container {
         padding-top: 2.2rem;
@@ -53,9 +64,45 @@ CUSTOM_CSS = """
     div[data-testid="stForm"] h3 {
         padding-top: 0 !important;
     }
+
+    /* ---- Custom company card: the Target Industry field lives outside the
+       nested form (so picking "Other" can rerun immediately), so this wrapper
+       carries the card border/padding instead, and the nested form is
+       stripped of its own so there's no double box. ---- */
+    .st-key-company_custom_wrapper {
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        border-radius: 8px;
+        padding: 1.78rem;
+    }
+    .st-key-company_custom_wrapper div[data-testid="stForm"] {
+        border: none !important;
+        padding: 0 !important;
+    }
     .st-key-personal_info_next_row,
     .st-key-custom_company_next_row {
         margin-top: 8px;
+    }
+
+    /* ---- Required-field error banner: custom warning icon, mask-colored to match the alert text ---- */
+    .st-key-required_field_error div[data-testid="stAlertContainer"] {
+        position: relative;
+        padding-left: 3rem !important;
+    }
+    .st-key-required_field_error div[data-testid="stAlertContainer"]::before {
+        content: "";
+        position: absolute;
+        left: 1.2rem;
+        top: 55%;
+        transform: translateY(-50%);
+        width: 1.4rem;
+        height: 1.4rem;
+        background-color: currentColor;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
     }
 
     /* ---- Numbered stepper ---- */
@@ -200,9 +247,107 @@ CUSTOM_CSS = """
 """
 
 
+INVALID_FIELD_BORDER_COLOR = "#BD4043"
+
+
+def render_invalid_field_borders(field_keys):
+    """Outlines the given widget keys in red to flag them as missing required input.
+
+    Covers the three widget shapes used in the setup forms: plain text
+    inputs/textareas (stTextInputRootElement / stTextAreaRootElement) and
+    react-aria selectboxes (the [role="group"] wrapper).
+
+    The red border is cleared the moment the user interacts with that specific
+    field (focuses or types into it) rather than waiting for the next form
+    submit — st.form fields don't trigger a rerun on their own, so this is
+    done with a small injected script instead of a plain CSS rule.
+
+    Note: this re-attaches a fresh listener on every call rather than
+    guarding against re-attachment. components.html() tears down and
+    recreates its iframe on each render, and Chrome silently detaches
+    listeners whose closures live in an iframe realm that gets destroyed —
+    even though the target DOM node (in the parent document) survives the
+    Streamlit rerun untouched. A "already attached" flag would just leave
+    the field listener-less after the first rerun.
+
+    A timestamp nonce is embedded in the payload so consecutive calls never
+    produce byte-identical HTML: Streamlit skips reloading the component
+    (and thus never re-runs the script) when a call's content is unchanged
+    from the last render, which would otherwise leave a field's red border
+    un-reapplied when the same field fails validation twice in a row.
+    """
+    if not field_keys:
+        return
+    keys_json = json.dumps(list(field_keys))
+    nonce = time.time_ns()
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            // nonce: {nonce}
+            const invalidKeys = {keys_json};
+            const doc = window.parent.document;
+
+            let styleEl = doc.getElementById('invalid-field-style');
+            if (!styleEl) {{
+                styleEl = doc.createElement('style');
+                styleEl.id = 'invalid-field-style';
+                styleEl.textContent =
+                    '.field-invalid {{ border: 1.5px solid {INVALID_FIELD_BORDER_COLOR} !important; ' +
+                    'border-radius: 8px; }}';
+                doc.head.appendChild(styleEl);
+            }}
+
+            const targetSelector =
+                '[data-testid="stTextInputRootElement"], [data-testid="stTextAreaRootElement"], [role="group"]';
+
+            invalidKeys.forEach(function(key) {{
+                const container = doc.querySelector('.st-key-' + key);
+                if (!container) return;
+                const target = container.querySelector(targetSelector);
+                if (!target) return;
+                target.classList.add('field-invalid');
+
+                const interactive = container.querySelector('input, textarea');
+                if (!interactive) return;
+
+                // Re-look up the wrapper by key on every event instead of closing over
+                // `target`: Streamlit recreates that ancestor div on each rerun even when
+                // it reuses this same input/textarea node, so a captured reference would
+                // go stale and clear the border on a detached, invisible copy.
+                const clearError = function() {{
+                    const freshContainer = doc.querySelector('.st-key-' + key);
+                    const freshTarget = freshContainer && freshContainer.querySelector(targetSelector);
+                    if (freshTarget) freshTarget.classList.remove('field-invalid');
+
+                    // The Target Industry selectbox's error border mirrors the
+                    // custom industry text input's whenever that field is shown.
+                    if (key === 'input_custom_industry') {{
+                        const industryContainer = doc.querySelector('.st-key-input_industry');
+                        const industryTarget = industryContainer && industryContainer.querySelector(targetSelector);
+                        if (industryTarget) industryTarget.classList.remove('field-invalid');
+                    }}
+                }};
+                interactive.addEventListener('focus', clearError);
+                interactive.addEventListener('input', clearError);
+            }});
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def apply_custom_styles():
     """Injects custom CSS styles into Streamlit."""
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    st.markdown(
+        f'<style>.st-key-required_field_error div[data-testid="stAlertContainer"]::before {{'
+        f'mask-image: url("{REQUIRED_FIELD_ICON_URI}");'
+        f'-webkit-mask-image: url("{REQUIRED_FIELD_ICON_URI}");'
+        f"}}</style>",
+        unsafe_allow_html=True,
+    )
 
 
 LOGO_MIME_TYPES = {
@@ -270,6 +415,7 @@ def _goto_setup_step(step_num: int):
         user_data = st.session_state.get("user_data", {})
         st.session_state.company_option = "custom" if user_data.get("industry") else "select"
     st.session_state.setup_error = None
+    st.session_state.invalid_fields = set()
 
 
 def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step: int = 1):
