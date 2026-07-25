@@ -8,6 +8,10 @@ LOGO_DIR = Path(__file__).parent / "assets" / "logos"
 
 CUSTOM_CSS = """
 <style>
+    /* ---- Hide default Streamlit menu and footer ---- */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+
     /* ---- Typography & base spacing ---- */
     html, body, [class*="css"]  {
         font-family: "Inter", "Source Sans Pro", sans-serif;
