@@ -1,0 +1,82 @@
+[
+  {
+    "category": "Background",
+    "text": "Walk me through your career so far and what led you to apply for this role."
+  },
+  {
+    "category": "Background",
+    "text": "What accomplishment from your career are you most proud of, and why?"
+  },
+  {
+    "category": "Background",
+    "text": "What part of your previous experience do you think prepares you best for this position?"
+  },
+  {
+    "category": "Background",
+    "text": "Tell me about a project where your specific skill set made the biggest difference to the outcome."
+  },
+  {
+    "category": "Technical Knowledge",
+    "text": "What best practices do you follow to make sure your work is reliable and maintainable over time?"
+  },
+  {
+    "category": "Technical Knowledge",
+    "text": "How do you stay current with new tools, methods, or trends in your field?"
+  },
+  {
+    "category": "Technical Knowledge",
+    "text": "What's a concept in your field that you think is commonly misunderstood, and how would you explain it correctly?"
+  },
+  {
+    "category": "Technical Knowledge",
+    "text": "How do you decide between two competing approaches when solving a technical problem?"
+  },
+  {
+    "category": "Situational",
+    "text": "Describe a time you disagreed with a coworker or manager about how to handle something. How did you resolve it?"
+  },
+  {
+    "category": "Situational",
+    "text": "Tell me about a time you had to meet a tight deadline with limited resources. What did you do?"
+  },
+  {
+    "category": "Situational",
+    "text": "How would you handle a situation where a project's priorities suddenly changed midway through?"
+  },
+  {
+    "category": "Situational",
+    "text": "Describe a time you had to deliver bad news to a stakeholder or client. How did you approach it?"
+  },
+  {
+    "category": "Brain Teaser",
+    "text": "If you had to remove one everyday object from the world, which would you choose and how would people adapt?"
+  },
+  {
+    "category": "Brain Teaser",
+    "text": "How would you explain a complex idea from your field to a curious 10-year-old?"
+  },
+  {
+    "category": "Brain Teaser",
+    "text": "You're given a task with no clear instructions and no one to ask. Walk me through how you'd figure out what to do."
+  },
+  {
+    "category": "Brain Teaser",
+    "text": "If you could redesign one everyday process to make it more efficient, what would it be and how?"
+  },
+  {
+    "category": "Analytical",
+    "text": "Walk me through how you would evaluate whether a new initiative was actually successful."
+  },
+  {
+    "category": "Analytical",
+    "text": "Describe a time you used data to challenge an assumption or change a decision."
+  },
+  {
+    "category": "Analytical",
+    "text": "How do you approach a problem when the available data is incomplete or messy?"
+  },
+  {
+    "category": "Analytical",
+    "text": "Tell me about a time you had to choose between several options with limited information. How did you decide?"
+  }
+]

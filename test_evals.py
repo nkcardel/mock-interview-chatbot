@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 import prompts
 from eval_cache import cached_call
-from schemas import InterviewEvaluation
+from schemas import InterviewEvaluation, SetupResult
 
 pytestmark = pytest.mark.model_eval
 
@@ -61,19 +61,32 @@ class QuestionJudgement(BaseModel):
     )
     reasoning: str = Field(..., description="One sentence justifying the two judgements above.")
 
+FIXED_DB_QUESTIONS = [
+    {"category": "Background", "text": "Walk me through your career so far and what led you to apply for this role."},
+    {
+        "category": "Technical Knowledge",
+        "text": "What best practices do you follow to make sure your work is reliable and maintainable over time?",
+    },
+]
 
-def simulate_interview_turn(system_prompt: str, history: list) -> str:
-    payload = {"model": prompts.MODEL_NAME, "system_prompt": system_prompt, "history": history, "temperature": 0.7}
+
+def generate_setup_questions(profile: dict, db_questions: list) -> list:
+    system_prompt = prompts.get_setup_prompt(
+        profile["name"], profile["experience"], profile["skills"], profile["level"], profile["position"],
+        profile.get("company", ""), "", "", "", db_questions,
+    )
+    payload = {"model": prompts.MODEL_NAME, "system_prompt": system_prompt, "temperature": 0.7, "schema": "SetupResult"}
 
     def _live():
-        completion = client.chat.completions.create(
+        completion = client.beta.chat.completions.parse(
             model=prompts.MODEL_NAME,
-            messages=[{"role": "system", "content": system_prompt}] + history,
+            messages=[{"role": "system", "content": system_prompt}],
             temperature=0.7,
+            response_format=SetupResult,
         )
-        return {"content": completion.choices[0].message.content}
+        return completion.choices[0].message.parsed.model_dump()
 
-    return cached_call("interview_turn", payload, _live)["content"]
+    return cached_call("setup_questions", payload, _live)["questions"]
 
 
 def judge_question(question: str, profile: dict) -> QuestionJudgement:
@@ -103,23 +116,9 @@ def judge_question(question: str, profile: dict) -> QuestionJudgement:
 
 
 @pytest.mark.parametrize("profile", CANDIDATE_PROFILES, ids=lambda p: p["name"])
-def test_interviewer_stays_on_topic(profile):
-    system_prompt = prompts.get_interviewer_system_prompt(
-        profile["name"], profile["experience"], profile["skills"],
-        profile["level"], profile["position"], profile["company"],
-    )
-
-    history = [{"role": "user", "content": "Hi, I'm ready to start."}]
-    judgements = []
-
-    for _ in range(3):
-        reply = simulate_interview_turn(system_prompt, history)
-        history.append({"role": "assistant", "content": reply})
-        judgements.append(judge_question(reply, profile))
-        history.append({
-            "role": "user",
-            "content": f"That's a great question. Relevant to my background: {profile['skills']}",
-        })
+def test_setup_questions_stay_on_topic(profile):
+    questions = generate_setup_questions(profile, FIXED_DB_QUESTIONS)
+    judgements = [judge_question(q["question_text"], profile) for q in questions]
 
     off_topic = [j for j in judgements if not j.on_topic]
     assert not off_topic, (
@@ -135,14 +134,6 @@ def test_interviewer_stays_on_topic(profile):
 
 # ---------------------------------------------------------------------------
 # Grader consistency — same transcript, repeated scoring, measure variance.
-#
-# Previously this called .create(), got back markdown text, and regexed a
-# score out of it with an explicit "assert score is not None" guard against
-# the parser failing to find anything. With structured outputs, the parsed
-# response's overall_score is *guaranteed to exist and be a float* by the
-# API contract — that assertion is no longer testing anything meaningful,
-# so it's gone. What's left is purely the question this test exists to
-# answer: does semantic scoring drift across identical runs?
 # ---------------------------------------------------------------------------
 FIXED_TRANSCRIPT = """
 system: You are interviewing a Junior Data Scientist candidate at Amazon.
