@@ -1,10 +1,16 @@
+import time
+
 import openai
 from openai import OpenAI
 import streamlit as st
 
 import prompts
-from schemas import InterviewEvaluation
+import question_bank
+from schemas import HumanizerTurn, InterviewEvaluation, SetupResult
 from ui import (
+    BRIEFCASE_ICON_URI,
+    EXPERIENCE_ICON_URI,
+    SKILLS_ICON_URI,
     apply_custom_styles,
     render_company_logo_styles,
     render_evaluation,
@@ -12,6 +18,7 @@ from ui import (
     render_invalid_field_borders,
     render_score_badge,
     render_step_indicator,
+    scroll_chat_to_bottom,
 )
 
 # ---------------------------
@@ -25,6 +32,15 @@ st.set_page_config(
 
 apply_custom_styles()
 render_header()
+
+
+CLOSING_MESSAGE = (
+    "Thank you for your time today — that concludes the interview! Nice work getting through "
+    "all the questions."
+)
+
+# Floor on how long the "Thinking..." spinner stays up
+MIN_SPINNER_SECONDS = 0.5
 
 
 def get_openai_client():
@@ -45,12 +61,14 @@ if "setup_step" not in st.session_state:
     st.session_state.setup_step = 1
 if "company_option" not in st.session_state:
     st.session_state.company_option = "select"
-if "user_message_count" not in st.session_state:
-    st.session_state.user_message_count = 0
+if "turns" not in st.session_state:
+    st.session_state.turns = []
+if "follow_up_count" not in st.session_state:
+    st.session_state.follow_up_count = 0
+if "last_turn_was_follow_up" not in st.session_state:
+    st.session_state.last_turn_was_follow_up = False
 if "feedback_shown" not in st.session_state:
     st.session_state.feedback_shown = False
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 if "chat_complete" not in st.session_state:
     st.session_state.chat_complete = False
 if "setup_error" not in st.session_state:
@@ -261,8 +279,9 @@ def reset_interview():
     st.session_state.company_option = "select"
     st.session_state.chat_complete = False
     st.session_state.feedback_shown = False
-    st.session_state.user_message_count = 0
-    st.session_state.messages = []
+    st.session_state.turns = []
+    st.session_state.follow_up_count = 0
+    st.session_state.last_turn_was_follow_up = False
     st.session_state.user_data = {
         "name": "",
         "experience": "",
@@ -277,9 +296,13 @@ def reset_interview():
     st.session_state.setup_error = None
     st.session_state.invalid_fields = set()
 
-    # Remove cached feedback if it exists
+    # Remove cached feedback and interview setup if they exist
     if "feedback_data" in st.session_state:
         del st.session_state["feedback_data"]
+    if "setup_questions" in st.session_state:
+        del st.session_state["setup_questions"]
+    if "closing_message" in st.session_state:
+        del st.session_state["closing_message"]
 
 
 render_step_indicator(
@@ -488,6 +511,28 @@ if not st.session_state.setup_complete:
                     st.error(st.session_state.setup_error)
                 render_invalid_field_borders(st.session_state.invalid_fields)
                 
+            position_is_custom = bool(saved["position"]) and saved["position"] not in POSITION_OPTIONS
+            position_index = (
+                POSITION_OPTIONS.index(OTHER_POSITION_OPTION)
+                if position_is_custom
+                else (POSITION_OPTIONS.index(saved["position"]) if saved["position"] in POSITION_OPTIONS else 0)
+            )
+            st.selectbox(
+                "Choose a position *",
+                POSITION_OPTIONS,
+                index=position_index,
+                key="input_position",
+            )
+            if st.session_state.get("input_position") == OTHER_POSITION_OPTION:
+                st.text_input(
+                    label="Custom position",
+                    label_visibility="collapsed",
+                    max_chars=60,
+                    key="input_custom_position",
+                    value=saved["position"] if position_is_custom else "",
+                    placeholder="Please specify your position (e.g. Product Marketing Manager)",
+                )
+
             level_options = ["Junior", "Mid-level", "Senior"]
             level_highlight_style = ""
             if saved["level"] in level_options:
@@ -517,30 +562,9 @@ if not st.session_state.setup_complete:
                             use_container_width=True,
                         )
 
-            position_is_custom = bool(saved["position"]) and saved["position"] not in POSITION_OPTIONS
-            position_index = (
-                POSITION_OPTIONS.index(OTHER_POSITION_OPTION)
-                if position_is_custom
-                else (POSITION_OPTIONS.index(saved["position"]) if saved["position"] in POSITION_OPTIONS else 0)
-            )
-            st.selectbox(
-                "Choose a position *",
-                POSITION_OPTIONS,
-                index=position_index,
-                key="input_position",
-            )
-            if st.session_state.get("input_position") == OTHER_POSITION_OPTION:
-                st.text_input(
-                    label="Custom position",
-                    label_visibility="collapsed",
-                    max_chars=60,
-                    key="input_custom_position",
-                    value=saved["position"] if position_is_custom else "",
-                    placeholder="Please specify your position (e.g. Product Marketing Manager)",
-                )
-
             with st.form("position_form"):
-                st.caption(f"You'll be asked {prompts.MAX_QUESTIONS} questions tailored to this role. Takes about 5 minutes.")
+                total_questions = prompts.DB_QUESTION_COUNT + prompts.GENERATED_QUESTION_COUNT
+                st.caption(f"You'll be asked {total_questions} questions tailored to this role. Takes about 5 minutes.")
 
                 _, next_col = st.columns([5, 1.5])
                 with next_col:
@@ -559,97 +583,202 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
     level_prefix = f'{data["level"]} ' if data["level"] else ""
     st.markdown(
         f'<div class="card">'
-        f'💼 Interviewing for <b>{level_prefix}{data["position"]}</b>{company_suffix}'
+        f'<img src="{BRIEFCASE_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
+        f'Interviewing for <b>{level_prefix}{data["position"]}</b>{company_suffix}'
         f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
-        f'<b>🧠 Experience:</b> {data["experience"] or "None provided"}<br/>'
-        f'<b>🛠️ Skills:</b> {data["skills"] or "None provided"}'
+        f'<b><img src="{EXPERIENCE_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
+        f'Experience:</b> {data["experience"] or "None provided"}<br/>'
+        f'<b><img src="{SKILLS_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
+        f'Skills:</b> {data["skills"] or "None provided"}'
         f'</div>',
         unsafe_allow_html=True,
     )
 
-    if not st.session_state.messages:
-        st.info("Start by introducing yourself.", icon="👋")
-        # Seed chat history with System Prompt
-        st.session_state.messages = [
-            {
-                "role": "system",
-                "content": prompts.get_interviewer_system_prompt(
-                    data["name"],
-                    data["experience"],
-                    data["skills"],
-                    data["level"],
-                    data["position"],
-                    data["company"],
-                    data["industry"],
-                    data["job_description"],
-                    data["job_requirements"],
-                ),
-            }
-        ]
+    # LLM 1 (Setup): runs once, builds the 6-question set the whole interview draws from.
+    if "setup_questions" not in st.session_state:
+        client = get_openai_client()
+        if client:
+            with st.spinner("Preparing your interview questions..."):
+                db_questions = question_bank.sample_questions(prompts.DB_QUESTION_COUNT)
+                try:
+                    completion = client.beta.chat.completions.parse(
+                        model=prompts.MODEL_NAME,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": prompts.get_setup_prompt(
+                                    data["name"],
+                                    data["experience"],
+                                    data["skills"],
+                                    data["level"],
+                                    data["position"],
+                                    data["company"],
+                                    data["industry"],
+                                    data["job_description"],
+                                    data["job_requirements"],
+                                    db_questions,
+                                ),
+                            }
+                        ],
+                        temperature=0.7,
+                        response_format=SetupResult,
+                    )
+                    message = completion.choices[0].message
 
-    # Render previous messages
-    for message in st.session_state.messages:
-        if message["role"] != "system":
-            avatar = "💼" if message["role"] == "assistant" else "🙋"
-            with st.chat_message(message["role"], avatar=avatar):
-                st.markdown(message["content"])
-
-    # Chat execution logic
-    if not st.session_state.chat_complete and st.session_state.user_message_count <= prompts.MAX_QUESTIONS:
-        if st.session_state.user_message_count < prompts.MAX_QUESTIONS:
-            st.caption(f"Question {st.session_state.user_message_count + 1} of {prompts.MAX_QUESTIONS}")
-        else:
-            st.caption("Wrapping up")
-
-        if prompt := st.chat_input("Your answer.", max_chars=1000):
-            client = get_openai_client()
-            if client:
-                st.session_state.messages.append({"role": "user", "content": prompt})
-                with st.chat_message("user", avatar="🙋"):
-                    st.markdown(prompt)
-
-                api_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-
-                # Closing remark request on the final turn
-                if st.session_state.user_message_count >= prompts.MAX_QUESTIONS:
-                    api_messages.append({"role": "system", "content": prompts.CLOSING_REMARK_PROMPT})
-
-                with st.chat_message("assistant", avatar="💼"):
-                    try:
-                        stream = client.chat.completions.create(
-                            model=prompts.MODEL_NAME,
-                            messages=api_messages,
-                            temperature=0.7,
-                            top_p=0.9,
-                            presence_penalty=0.2,
-                            frequency_penalty=0.1,
-                            stream=True,
-                        )
-                        response = st.write_stream(stream)
-                        st.session_state.messages.append({"role": "assistant", "content": response})
-
-                        st.session_state.user_message_count += 1
-
-                        if st.session_state.user_message_count > prompts.MAX_QUESTIONS:
-                            st.session_state.chat_complete = True
-
+                    if message.refusal:
+                        st.error(f"Could not prepare interview questions: {message.refusal}", icon="⚠️")
+                    else:
+                        st.session_state.setup_questions = [
+                            {"category": q.question_category, "text": q.question_text}
+                            for q in message.parsed.questions
+                        ]
                         st.rerun()
-                    except openai.AuthenticationError:
-                        st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
-                        st.session_state.messages.pop()
-                    except openai.RateLimitError:
-                        st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
-                        st.session_state.messages.pop()
-                    except (openai.APITimeoutError, openai.APIConnectionError):
-                        st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
-                        st.session_state.messages.pop()
-                    except openai.OpenAIError as e:
-                        st.error(f"An API error occurred: {e.message}", icon="❌")
-                        st.session_state.messages.pop()
+                except openai.AuthenticationError:
+                    st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
+                except openai.RateLimitError:
+                    st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
+                except (openai.APITimeoutError, openai.APIConnectionError):
+                    st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
+                except openai.LengthFinishReasonError:
+                    st.error("The response was cut off before it completed. Please try again.", icon="✂️")
+                except openai.OpenAIError as e:
+                    st.error(f"An API error occurred: {e.message}", icon="❌")
+    else:
+        questions = st.session_state.setup_questions
+        total_questions = len(questions)
 
-    elif st.session_state.chat_complete:
-        st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
-        st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
+        if not st.session_state.turns:
+            st.session_state.turns = [
+                {
+                    "category": questions[0]["category"],
+                    "predefined_question": questions[0]["text"],
+                    "displayed_question": questions[0]["text"],
+                    "answer": None,
+                    "is_follow_up": False,
+                }
+            ]
+
+        # Render conversation so far
+        for turn in st.session_state.turns:
+            with st.chat_message("assistant"):
+                st.markdown(turn["displayed_question"])
+            if turn["answer"] is not None:
+                with st.chat_message("user"):
+                    st.markdown(turn["answer"])
+
+        if "closing_message" in st.session_state:
+            with st.chat_message("assistant"):
+                st.markdown(st.session_state.closing_message)
+
+        scroll_chat_to_bottom()
+
+        if not st.session_state.chat_complete:
+            current_index = len(st.session_state.turns) - 1
+            current_turn = st.session_state.turns[current_index]
+            st.caption(f"Question {current_index + 1} of {total_questions} — {current_turn['category']}")
+
+            if prompt := st.chat_input("Your answer.", max_chars=1000):
+                client = get_openai_client()
+                if client:
+                    current_turn["answer"] = prompt
+                    with st.chat_message("user", avatar="🙋"):
+                        st.markdown(prompt)
+                    scroll_chat_to_bottom()
+
+                    next_index = current_index + 1
+                    if next_index >= total_questions:
+                        # All predefined questions answered — static farewell, no LLM call.
+                        st.session_state.closing_message = CLOSING_MESSAGE
+                        st.session_state.chat_complete = True
+                        st.rerun()
+                    else:
+                        # LLM 2 (Humanizer): scores the just-given answer and phrases the
+                        # next predefined question, given only that one Q/A pair.
+                        follow_up_allowed = (
+                            st.session_state.follow_up_count < prompts.MAX_FOLLOW_UPS
+                            and not st.session_state.last_turn_was_follow_up
+                        )
+                        with st.chat_message("assistant", avatar="💼"):
+                            typing_placeholder = st.empty()
+                            typing_placeholder.markdown(
+                                '<div class="typing-indicator"><span></span><span></span><span></span></div>',
+                                unsafe_allow_html=True,
+                            )
+                            try:
+                                spinner_start = time.monotonic()
+                                completion = client.beta.chat.completions.parse(
+                                    model=prompts.MODEL_NAME,
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": prompts.get_humanizer_prompt(
+                                                current_question=questions[next_index]["text"],
+                                                current_category=questions[next_index]["category"],
+                                                previous_question=current_turn["predefined_question"],
+                                                previous_response=prompt,
+                                                follow_up_allowed=follow_up_allowed,
+                                            ),
+                                        }
+                                    ],
+                                    temperature=0.7,
+                                    response_format=HumanizerTurn,
+                                )
+                                remaining = MIN_SPINNER_SECONDS - (time.monotonic() - spinner_start)
+                                if remaining > 0:
+                                    time.sleep(remaining)
+                                typing_placeholder.empty()
+                                message = completion.choices[0].message
+
+                                if message.refusal:
+                                    st.error(f"The interviewer declined to continue: {message.refusal}", icon="⚠️")
+                                    current_turn["answer"] = None
+                                else:
+                                    humanized = message.parsed
+                                    # Defensive clamp: the budget/consecutive-turn rule is
+                                    # enforced here, not trusted from the model's own output.
+                                    is_follow_up = humanized.is_follow_up and follow_up_allowed
+                                    st.markdown(humanized.message)
+                                    scroll_chat_to_bottom()
+                                    st.session_state.turns.append(
+                                        {
+                                            "category": questions[next_index]["category"],
+                                            "predefined_question": questions[next_index]["text"],
+                                            "displayed_question": humanized.message,
+                                            "answer": None,
+                                            "is_follow_up": is_follow_up,
+                                        }
+                                    )
+                                    st.session_state.follow_up_count += 1 if is_follow_up else 0
+                                    st.session_state.last_turn_was_follow_up = is_follow_up
+                                    st.rerun()
+                            except openai.AuthenticationError:
+                                typing_placeholder.empty()
+                                st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
+                                current_turn["answer"] = None
+                            except openai.RateLimitError:
+                                typing_placeholder.empty()
+                                st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
+                                current_turn["answer"] = None
+                            except (openai.APITimeoutError, openai.APIConnectionError):
+                                typing_placeholder.empty()
+                                st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
+                                current_turn["answer"] = None
+                            except openai.LengthFinishReasonError:
+                                typing_placeholder.empty()
+                                st.error(
+                                    "The interviewer's response was cut off before it completed. Please try again.",
+                                    icon="✂️",
+                                )
+                                current_turn["answer"] = None
+                            except openai.OpenAIError as e:
+                                typing_placeholder.empty()
+                                st.error(f"An API error occurred: {e.message}", icon="❌")
+                                current_turn["answer"] = None
+        else:
+            st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
+            st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
+
+            scroll_chat_to_bottom()
 
 # ---------------------------
 # Step 5: Feedback Phase
@@ -667,7 +796,8 @@ if st.session_state.feedback_shown:
 
         if feedback_client:
             conversation_history = "\n".join(
-                [f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages]
+                f"interviewer [{turn['category']}]: {turn['displayed_question']}\nuser: {turn['answer']}"
+                for turn in st.session_state.turns
             )
 
             with st.spinner("Reviewing your answers..."):
@@ -689,7 +819,12 @@ if st.session_state.feedback_shown:
                     if message.refusal:
                         st.error(f"The model declined to generate feedback: {message.refusal}", icon="⚠️")
                     else:
-                        st.session_state.feedback_data = message.parsed
+                        evaluation = message.parsed
+                        # We already know each question's real category from LLM 1 — use
+                        # that ground truth instead of trusting the evaluator to re-derive it.
+                        for q_eval, turn in zip(evaluation.questions, st.session_state.turns):
+                            q_eval.topic = turn["category"]
+                        st.session_state.feedback_data = evaluation
 
                 except openai.AuthenticationError:
                     st.error("Authentication failed while fetching evaluation. Check API key.", icon="🚨")

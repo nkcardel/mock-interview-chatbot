@@ -20,8 +20,45 @@ from typing import List
 from pydantic import BaseModel, Field
 
 
+class SetupQuestion(BaseModel):
+    question_category: str = Field(
+        ...,
+        description=(
+            "The category of this question: one of 'Background', 'Technical Knowledge', "
+            "'Situational', 'Brain Teaser', or 'Analytical'."
+        ),
+    )
+    question_text: str = Field(..., description="The finished interview question, verbatim.")
+
+
+class SetupResult(BaseModel):
+    questions: List[SetupQuestion] = Field(
+        ..., description="Exactly six finished interview questions, in the order they'll be asked."
+    )
+
+
+class HumanizerTurn(BaseModel):
+    previous_response_score: int = Field(
+        ..., description="Score for the candidate's previous answer. Intended range: 1-10."
+    )
+    is_follow_up: bool = Field(
+        ...,
+        description=(
+            "True if this turn's message is a follow-up built on the previous answer; false if it's "
+            "the predefined question paired with a short remark."
+        ),
+    )
+    message: str = Field(..., description="The finished message to show the candidate for this turn.")
+
+
 class QuestionEvaluation(BaseModel):
-    topic: str = Field(..., description="Short topic label, e.g. 'System Design' or 'Behavioral'.")
+    topic: str = Field(
+        ...,
+        description=(
+            "The question's category: one of 'Background', 'Technical Knowledge', 'Situational', "
+            "'Brain Teaser', or 'Analytical'."
+        ),
+    )
     question_asked: str = Field(..., description="The interviewer's question, verbatim or lightly summarized.")
     candidate_response_summary: str = Field(..., description="1-2 sentence summary of what the candidate said.")
     score: int = Field(..., description="Score for this single answer. Intended range: 1-10.")

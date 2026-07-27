@@ -16,6 +16,9 @@ def _svg_data_uri(path: Path) -> str:
 
 
 REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
+BRIEFCASE_ICON_URI = _svg_data_uri(ICON_DIR / "briefcase.svg")
+EXPERIENCE_ICON_URI = _svg_data_uri(ICON_DIR / "experience.svg")
+SKILLS_ICON_URI = _svg_data_uri(ICON_DIR / "skills.svg")
 
 CUSTOM_CSS = """
 <style>
@@ -31,6 +34,9 @@ CUSTOM_CSS = """
         padding-top: 2.2rem;
         padding-bottom: 3rem;
         max-width: 760px;
+    }
+    .st-emotion-cache-6shykm {
+        padding: 1rem 1rem 2rem;
     }
 
     /* ---- Hero header ---- */
@@ -162,7 +168,12 @@ CUSTOM_CSS = """
         color: #9ca3af;
         border: 2px solid #d1d5db;
     }
-    .st-key-stepper:not(:has(div.stButton)) .stepper-node {
+    /* Scoped to [data-stale="false"] rather than a bare div.stButton: a
+       superseded step-3 button can still be sitting in the DOM (hidden via
+       the data-stale rule below) while the interview's button-free stepper
+       is the current render, and :has() matches on DOM presence regardless
+       of display, so an unscoped check would misfire during that window. */
+    .st-key-stepper:not(:has([data-stale="false"] div.stButton)) .stepper-node {
         margin-top: 16px !important;
     }
     .stepper-label {
@@ -199,7 +210,7 @@ CUSTOM_CSS = """
     .st-key-stepper div[data-testid="stElementContainer"]:has(> div.stButton) {
         height: 34px !important;
     }
-    .st-key-stepper:not(:has(div.stButton)) div[data-testid="stElementContainer"]:has(.stepper-node) {
+    .st-key-stepper:not(:has([data-stale="false"] div.stButton)) div[data-testid="stElementContainer"]:has(.stepper-node) {
         height: 50px !important;
     }
 
@@ -273,6 +284,69 @@ CUSTOM_CSS = """
     hr {
         margin: 1.4rem 0;
         border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    /* ---- Stale-element hiding ---- */
+    [data-stale="true"] {
+        display: none !important;
+    }
+
+    /* ---- Hide the avatar for assistant chat messages ---- */
+    div[data-testid="stChatMessage"]:has(> div[data-testid="stChatMessageContent"][aria-label="Chat message from assistant"])
+    > *:not([data-testid="stChatMessageContent"]) {
+        display: none !important;
+    }
+
+    /* ---- Hide the avatar for user chat messages ---- */
+    div[data-testid="stChatMessage"]:has(> div[data-testid="stChatMessageContent"][aria-label="Chat message from user"])
+    > *:not([data-testid="stChatMessageContent"]) {
+        display: none !important;
+    }
+
+    /* ---- User chat bubble: avatar and bubble on the right, background
+       hugs the text instead of stretching the full row width ---- */
+    div[data-testid="stChatMessage"]:has(> div[data-testid="stChatMessageContent"][aria-label="Chat message from user"]) {
+        flex-direction: row-reverse;
+        background: transparent;
+    }
+    div[data-testid="stChatMessage"]:has(> div[data-testid="stChatMessageContent"][aria-label="Chat message from user"])
+    > div[data-testid="stChatMessageContent"] {
+        flex-grow: 0;
+        max-width: 80%;
+        margin-left: auto;
+        margin-right: 0;
+        background-color: rgba(240, 242, 246, 0.5);
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    /* ---- Typing indicator ---- */
+    .typing-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 0 4px 2px;
+    }
+    .typing-indicator span {
+        width: 5.5px;
+        height: 5.5px;
+        border-radius: 50%;
+        background-color: #94a3b8;
+        animation: typing-bounce 1.2s infinite ease-in-out both;
+    }
+    .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing-bounce {
+        0%, 80%, 100% {
+            transform: scale(0.6);
+            opacity: 0.4;
+        }
+        40% {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
 </style>
 """
@@ -375,6 +449,41 @@ def render_invalid_field_borders(field_keys):
     )
 
 
+def scroll_chat_to_bottom():
+    """Keeps the latest chat message in view after a rerun."""
+    nonce = time.time_ns()
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            // nonce: {nonce}
+            const doc = window.parent.document;
+            function scrollToBottom() {{
+                const se = doc.scrollingElement || doc.documentElement;
+                se.scrollTop = se.scrollHeight;
+                window.parent.scrollTo(0, doc.body.scrollHeight);
+                const container = doc.querySelector(
+                    '[data-testid="stAppScrollToBottomContainer"], [data-testid="stMain"]'
+                );
+                if (container) {{
+                    container.scrollTop = container.scrollHeight;
+                }}
+            }}
+            scrollToBottom();
+            const target = doc.querySelector(
+                '[data-testid="stAppScrollToBottomContainer"], [data-testid="stMain"]'
+            ) || doc.body;
+            const observer = new MutationObserver(scrollToBottom);
+            observer.observe(target, {{childList: true, subtree: true}});
+            setTimeout(() => observer.disconnect(), 2000);
+            [0, 50, 150, 300, 600, 1000].forEach(delay => setTimeout(scrollToBottom, delay));
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def apply_custom_styles():
     """Injects custom CSS styles into Streamlit."""
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -445,10 +554,7 @@ STEP_LABELS = {
 def _goto_setup_step(step_num: int):
     st.session_state.setup_step = step_num
     if step_num == 2:
-        # Land back on whichever Company sub-screen the user actually used —
-        # "industry" is only ever set by the custom-profile path, so its
-        # presence is what distinguishes "custom" from "select" (which also
-        # covers the "no target company" shortcut, since that starts there).
+        # Land back on whichever Company sub-screen the user actually used
         user_data = st.session_state.get("user_data", {})
         st.session_state.company_option = "custom" if user_data.get("industry") else "select"
     st.session_state.setup_error = None
@@ -510,18 +616,7 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
 
 
 def render_evaluation(evaluation):
-    """Renders a structured InterviewEvaluation (see schemas.py).
-
-    Replaces the old approach of dumping the model's raw markdown response
-    with st.markdown(feedback_text). Now the response is a validated
-    Pydantic object, so rendering means iterating typed fields instead of
-    trusting the model to have followed a formatting instruction exactly.
-
-    Model-generated text is still untrusted input from a rendering
-    standpoint (candidate_response_summary in particular is derived from
-    the user's own free-text answers), so it's HTML-escaped before being
-    interpolated into unsafe_allow_html markup.
-    """
+    """Renders a structured InterviewEvaluation (see schemas.py)."""
     for i, q in enumerate(evaluation.questions, start=1):
         st.markdown(
             f'<div class="card">'
