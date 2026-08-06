@@ -9,19 +9,21 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 import prompts
 import question_bank
 from schemas import HumanizerTurn, InterviewEvaluation, SetupResult
-from ui import (
-    BRIEFCASE_ICON_URI,
-    EXPERIENCE_ICON_URI,
-    FEEDBACK_ICON_URI,
-    SKILLS_ICON_URI,
-    apply_custom_styles,
-    render_company_logo_styles,
+from components import (
     render_evaluation,
     render_header,
     render_invalid_field_borders,
     render_score_overview,
     render_step_indicator,
     scroll_chat_to_bottom,
+)
+from styles import (
+    BRIEFCASE_ICON_URI,
+    EXPERIENCE_ICON_URI,
+    FEEDBACK_ICON_URI,
+    SKILLS_ICON_URI,
+    apply_custom_styles,
+    render_company_logo_styles,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
