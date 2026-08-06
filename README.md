@@ -101,7 +101,10 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
    .venv\Scripts\activate   # Windows
    pip install -r requirements.txt
    ```
-3. Add your OpenAI API key to Streamlit secrets — create `.streamlit/secrets.toml` in the project root:
+3. Add your OpenAI API key to Streamlit secrets — copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in your key:
+   ```
+   cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+   ```
    ```
    OPENAI_API_KEY = "your_key_here"
    ```
