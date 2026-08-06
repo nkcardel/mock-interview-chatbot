@@ -1,3 +1,4 @@
+import logging
 import time
 
 import openai
@@ -22,6 +23,9 @@ from ui import (
     render_step_indicator,
     scroll_chat_to_bottom,
 )
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # ---------------------------
 # Page Config & Initial Setup
@@ -63,6 +67,7 @@ def get_openai_client():
     """Safely initialize OpenAI client checking for secrets."""
     api_key = st.secrets.get("OPENAI_API_KEY")
     if not api_key:
+        logger.warning("OPENAI_API_KEY is not set in Streamlit secrets.")
         st.error(
             "Missing OpenAI API Key. Please add `OPENAI_API_KEY` to your Streamlit secrets.",
             icon="🔑",
@@ -102,9 +107,13 @@ def track_usage(completion):
     totals["total_tokens"] += usage.total_tokens
     totals["cost"] += call_cost
 
-    print(
-        f"[usage] {prompts.MODEL_NAME}: +{usage.total_tokens} tokens (${call_cost:.4f}) — "
-        f"session total: {totals['total_tokens']} tokens (${totals['cost']:.4f})"
+    logger.info(
+        "usage: %s: +%d tokens ($%.4f) - session total: %d tokens ($%.4f)",
+        prompts.MODEL_NAME,
+        usage.total_tokens,
+        call_cost,
+        totals["total_tokens"],
+        totals["cost"],
     )
 
 
@@ -732,6 +741,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                     message = completion.choices[0].message
 
                     if message.refusal:
+                        logger.warning(
+                            "Setup LLM refused to generate questions: %s", message.refusal
+                        )
                         st.error(
                             f"Could not prepare interview questions: {message.refusal}", icon="⚠️"
                         )
@@ -742,19 +754,24 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                         ]
                         st.rerun()
                 except openai.AuthenticationError:
+                    logger.exception("OpenAI authentication failed during setup.")
                     st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
                 except openai.RateLimitError:
+                    logger.exception("OpenAI rate limit hit during setup.")
                     st.error(
                         "Rate limit exceeded or insufficient quota. Please try again later.",
                         icon="⏳",
                     )
                 except (openai.APITimeoutError, openai.APIConnectionError):
+                    logger.exception("OpenAI network error during setup.")
                     st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
                 except openai.LengthFinishReasonError:
+                    logger.exception("OpenAI response cut off during setup.")
                     st.error(
                         "The response was cut off before it completed. Please try again.", icon="✂️"
                     )
                 except openai.OpenAIError as e:
+                    logger.exception("OpenAI API error during setup.")
                     st.error(f"An API error occurred: {e.message}", icon="❌")
     else:
         questions = st.session_state.setup_questions
@@ -881,6 +898,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 message = completion.choices[0].message
 
                                 if message.refusal:
+                                    logger.warning(
+                                        "Humanizer LLM refused to continue: %s", message.refusal
+                                    )
                                     st.session_state.interview_error = (
                                         f"The interviewer declined to continue: {message.refusal}",
                                         "⚠️",
@@ -909,6 +929,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                     st.session_state.awaiting_llm = False
                                     st.rerun()
                             except openai.AuthenticationError:
+                                logger.exception(
+                                    "OpenAI authentication failed during interview turn."
+                                )
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
                                     "Authentication failed. Check your OpenAI API key.",
@@ -918,6 +941,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 st.session_state.awaiting_llm = False
                                 st.rerun()
                             except openai.RateLimitError:
+                                logger.exception("OpenAI rate limit hit during interview turn.")
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
                                     "Rate limit exceeded or insufficient quota. Please try again later.",
@@ -927,6 +951,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 st.session_state.awaiting_llm = False
                                 st.rerun()
                             except (openai.APITimeoutError, openai.APIConnectionError):
+                                logger.exception("OpenAI network error during interview turn.")
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
                                     "Network timeout or connectivity issue. Please retry.",
@@ -936,6 +961,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 st.session_state.awaiting_llm = False
                                 st.rerun()
                             except openai.LengthFinishReasonError:
+                                logger.exception("OpenAI response cut off during interview turn.")
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
                                     "The interviewer's response was cut off before it completed. "
@@ -946,6 +972,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 st.session_state.awaiting_llm = False
                                 st.rerun()
                             except openai.OpenAIError as e:
+                                logger.exception("OpenAI API error during interview turn.")
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
                                     f"An API error occurred: {e.message}",
@@ -1005,6 +1032,9 @@ if st.session_state.feedback_shown:
                     # Structured outputs adds a failure mode .create() didn't have:
                     # the model can decline to answer instead of returning the schema.
                     if message.refusal:
+                        logger.warning(
+                            "Evaluation LLM refused to generate feedback: %s", message.refusal
+                        )
                         st.error(
                             f"The model declined to generate feedback: {message.refusal}", icon="⚠️"
                         )
@@ -1019,21 +1049,26 @@ if st.session_state.feedback_shown:
                         st.session_state.feedback_data = evaluation
 
                 except openai.AuthenticationError:
+                    logger.exception("OpenAI authentication failed during evaluation.")
                     st.error(
                         "Authentication failed while fetching evaluation. Check API key.", icon="🚨"
                     )
                 except openai.RateLimitError:
+                    logger.exception("OpenAI rate limit hit during evaluation.")
                     st.error(
                         "Rate limit hit during evaluation. Please try again shortly.", icon="⏳"
                     )
                 except (openai.APITimeoutError, openai.APIConnectionError):
+                    logger.exception("OpenAI network error during evaluation.")
                     st.error("Network timeout during feedback generation.", icon="📡")
                 except openai.LengthFinishReasonError:
+                    logger.exception("OpenAI response cut off during evaluation.")
                     st.error(
                         "The evaluation response was cut off before it completed. Please try again.",
                         icon="✂️",
                     )
                 except openai.OpenAIError as e:
+                    logger.exception("OpenAI API error during evaluation.")
                     st.error(
                         f"Failed to generate feedback due to an API error: {e.message}", icon="❌"
                     )
