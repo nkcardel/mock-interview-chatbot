@@ -26,3 +26,9 @@ weight = 700
 family = "Poppins"
 url = "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLDD4Z1xlFQ.woff2"
 weight = 800
+
+[client]
+toolbarMode = "minimal"
+
+[ui]
+hideTopBar = true
