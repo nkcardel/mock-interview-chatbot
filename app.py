@@ -16,7 +16,7 @@ from ui import (
     render_evaluation,
     render_header,
     render_invalid_field_borders,
-    render_score_badge,
+    render_score_overview,
     render_step_indicator,
     scroll_chat_to_bottom,
 )
@@ -303,6 +303,8 @@ def reset_interview():
         del st.session_state["setup_questions"]
     if "closing_message" in st.session_state:
         del st.session_state["closing_message"]
+    if "feedback_selected_q" in st.session_state:
+        del st.session_state["feedback_selected_q"]
 
 
 render_step_indicator(
@@ -658,19 +660,27 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                 }
             ]
 
-        # Render conversation so far
-        for turn in st.session_state.turns:
-            with st.chat_message("assistant"):
-                st.markdown(turn["displayed_question"])
-            if turn["answer"] is not None:
-                with st.chat_message("user"):
-                    st.markdown(turn["answer"])
 
-        if "closing_message" in st.session_state:
-            with st.chat_message("assistant"):
-                st.markdown(st.session_state.closing_message)
+        with st.container(key="feedback_loading_chat"):
+            # Render conversation so far
+            for turn in st.session_state.turns:
+                with st.chat_message("assistant"):
+                    st.markdown(turn["displayed_question"])
+                if turn["answer"] is not None:
+                    with st.chat_message("user"):
+                        st.markdown(turn["answer"])
 
-        scroll_chat_to_bottom()
+            if "closing_message" in st.session_state:
+                with st.chat_message("assistant"):
+                    st.markdown(st.session_state.closing_message)
+
+            scroll_chat_to_bottom()
+
+            if st.session_state.chat_complete:
+                st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
+                st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
+
+                scroll_chat_to_bottom()
 
         if not st.session_state.chat_complete:
             current_index = len(st.session_state.turns) - 1
@@ -757,7 +767,10 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 current_turn["answer"] = None
                             except openai.RateLimitError:
                                 typing_placeholder.empty()
-                                st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
+                                st.error(
+                                    "Rate limit exceeded or insufficient quota. Please try again later.",
+                                    icon="⏳",
+                                )
                                 current_turn["answer"] = None
                             except (openai.APITimeoutError, openai.APIConnectionError):
                                 typing_placeholder.empty()
@@ -766,7 +779,8 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                             except openai.LengthFinishReasonError:
                                 typing_placeholder.empty()
                                 st.error(
-                                    "The interviewer's response was cut off before it completed. Please try again.",
+                                    "The interviewer's response was cut off before it completed. "
+                                    "Please try again.",
                                     icon="✂️",
                                 )
                                 current_turn["answer"] = None
@@ -774,18 +788,17 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 typing_placeholder.empty()
                                 st.error(f"An API error occurred: {e.message}", icon="❌")
                                 current_turn["answer"] = None
-        else:
-            st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
-            st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
-
-            scroll_chat_to_bottom()
 
 # ---------------------------
 # Step 5: Feedback Phase
 # ---------------------------
 if st.session_state.feedback_shown:
+    st.markdown(
+        "<style>.st-key-feedback_loading_chat { display: none !important; }</style>",
+        unsafe_allow_html=True,
+    )
     st.subheader("📋 Feedback")
-    with st.container(key="step_caption"):
+    with st.container(key="feedback_step_caption"):
         st.caption(
             "Here's how you did: a score and critique for each answer, plus your overall "
             "strengths and areas to improve."
@@ -840,8 +853,7 @@ if st.session_state.feedback_shown:
     if "feedback_data" in st.session_state:
         evaluation = st.session_state.feedback_data
 
-        render_score_badge(evaluation.clamped_overall_score())
-        render_evaluation(evaluation)
+        render_score_overview(evaluation)
+        render_evaluation(evaluation, st.session_state.turns)
 
-        st.markdown("---")
         st.button("Restart Interview", type="primary", on_click=reset_interview, key="btn_restart")

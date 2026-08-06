@@ -1,6 +1,7 @@
 import base64
 import html
 import json
+import math
 import time
 from pathlib import Path
 
@@ -14,11 +15,15 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 def _svg_data_uri(path: Path) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
+def _svg_data_uri_from_string(svg: str) -> str:
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
 BRIEFCASE_ICON_URI = _svg_data_uri(ICON_DIR / "briefcase.svg")
 EXPERIENCE_ICON_URI = _svg_data_uri(ICON_DIR / "experience.svg")
 SKILLS_ICON_URI = _svg_data_uri(ICON_DIR / "skills.svg")
+ARROW_LEFT_ICON_URI = _svg_data_uri_from_string('<svg fill="#000000" width="50px" height="50px" viewBox="-96 0 512 512" xmlns="http://www.w3.org/2000/svg"><path transform="rotate(90 160 256)" d="M41 288h238c21.4 0 32.1 25.9 17 41L177 448c-9.4 9.4-24.6 9.4-33.9 0L24 329c-15.1-15.1-4.4-41 17-41z"/></svg>')
+ARROW_RIGHT_ICON_URI = _svg_data_uri_from_string('<svg fill="#000000" width="50px" height="50px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 18l6-6-6-6"/></svg>')
 
 CUSTOM_CSS = """
 <style>
@@ -58,7 +63,7 @@ CUSTOM_CSS = """
         border: 1px solid rgba(148, 163, 184, 0.18);
         border-radius: 14px;
         padding: 1.4rem 1.5rem;
-        margin-bottom: 1.2rem;
+        margin: 1.2rem 0;
     }
 
     /* ---- Setup form container ---- */
@@ -99,6 +104,10 @@ CUSTOM_CSS = """
     }
     .st-key-step_caption {
         margin-top: -10px !important;
+        margin-bottom: 0 !important;
+    }
+    .st-key-feedback_step_caption {
+        margin-top: 6px !important;
         margin-bottom: 0 !important;
     }
 
@@ -260,25 +269,288 @@ CUSTOM_CSS = """
         border-color: #0054A3 !important;
     }
 
-    /* ---- Score badge ---- */
-    .score-badge {
-        display: inline-flex;
+    /* ---- Score ring: a circular progress ring (conic-gradient) with the
+       numeric score in a plain circle cut out of its center. The two
+       .score-ring-cap dots are absolutely positioned (in Python, via
+       trig on the score percentage) at the start and end of the arc to
+       fake a round linecap, since conic-gradient itself only draws hard
+       edges. ---- */
+    .score-ring {
+        position: relative;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 92px;
-        height: 92px;
+        width: 128px;
+        height: 128px;
         border-radius: 50%;
-        font-size: 1.9rem;
-        font-weight: 800;
-        color: white;
-        margin: 0 auto 0.4rem auto;
+        margin: 0 auto 0.6rem auto;
     }
-    .score-wrap {
-        text-align: center;
+    .score-ring-cap {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+    }
+    .score-ring-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 98px;
+        height: 98px;
+        border-radius: 50%;
+        background: #04203f;
+    }
+    .score-ring-value {
+        font-size: 1.5rem;
+        font-weight: 800;
     }
     .score-caption {
-        color: #6b7280;
+        color: #94a3b8;
         font-size: 0.85rem;
+    }
+    .score-verdict {
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 150px;
+    }
+
+    /* ---- Combined score overview card: circular overall score box on the
+       left, four criterion boxes in a 2x2 grid on the right, each with a
+       segmented 3-tier bar. Styled as a dark navy panel with teal-accented
+       bordered sub-boxes so it stands apart from the rest of the (light)
+       feedback screen. ---- */
+    .card.score-overview-card {
+        background: #04203f;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        margin-bottom: 3rem;
+    }
+    .score-overview-card {
+        display: flex;
+        align-items: stretch;
+        gap: 1.2rem;
+        flex-wrap: wrap;
+    }
+    .score-ring-box,
+    .score-criterion-box {
+        border: 1.5px solid rgba(45, 212, 191, 0.45);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .score-ring-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        padding: 1.4rem 1.4rem 1.2rem 1.4rem;
+        margin: 0 auto;
+    }
+    .score-overview-bars {
+        flex: 1 1 320px;
+        min-width: 300px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 1rem;
+        row-gap: 1rem;
+    }
+    .score-criterion-box {
+        padding: 1rem 1.1rem;
+    }
+    .score-criterion-title {
+        color: #f1f5f9;
+        font-weight: 500;
+        font-size: 0.95rem;
+        margin-bottom: 0.25rem;
+    }
+    .score-criterion-helper {
+        color: rgba(226, 232, 240, 0.55);
+        font-size: 0.65rem;
+        line-height: 1.35;
+        margin-bottom: 0.7rem;
+    }
+    .score-tier-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+        margin-bottom: 6px;
+    }
+    .score-tier-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+    .score-tier-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+
+    /* ---- Insight cards: Overall Performance / Top Strengths / Areas for
+       Improvement, each a light bordered card with an icon+heading row ---- */
+    .insight-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 1.3rem 1.5rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+    .insight-card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 0.7rem;
+    }
+    .insight-card ul {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+    .insight-card li {
+        margin-bottom: 4px;
+    }
+    .insight-card p {
+        margin: 0;
+    }
+
+    /* ---- Response evaluation: a single detail card shows one question at
+       a time, with bare SVG-icon prev/next arrows (no button chrome)
+       sitting right next to the "Question X of N" indicator. ---- */
+    /* Streamlit's flex column adds each element's own margins rather than
+       collapsing them, so this must net out to the same total gap as
+       .card's margin-bottom above: 3rem total minus the preceding
+       .insight-card's own 1.2rem margin-bottom = 1.8rem here. */
+    .st-key-response_eval_title {
+        margin-top: 1.8rem;
+    }
+    .st-key-response_eval_detail {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 1.5rem 1.6rem;
+        margin: 1rem 0;
+    }
+    /* Vertically center the two narrow arrow columns against the wide
+       middle column's (taller, two-line) content. */
+    .st-key-response_eval_pager div[data-testid="stHorizontalBlock"] {
+        align-items: center;
+        gap: 8px;
+    }
+    /* The SVG itself is the button: no background, border, or padding —
+       just the icon image at button size. */
+    .st-key-resp_arrow_left div.stButton > button,
+    .st-key-resp_arrow_right div.stButton > button {
+        background-color: transparent !important;
+        background-repeat: no-repeat !important;
+        background-position: center !important;
+        background-size: 14px 14px !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 20px !important;
+        height: 20px !important;
+        min-height: 20px !important;
+        min-width: 20px !important;
+    }
+    .st-key-resp_arrow_left div.stButton > button p,
+    .st-key-resp_arrow_right div.stButton > button p {
+        display: none;
+    }
+    .st-key-resp_arrow_left div.stButton > button:disabled,
+    .st-key-resp_arrow_right div.stButton > button:disabled {
+        opacity: 0.3 !important;
+        cursor: not-allowed !important;
+    }
+    .st-key-resp_arrow_left {
+        margin-right: 5px !important;
+    }
+    .st-key-resp_indicator {
+        margin-right: 5px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.st-key-resp_arrow_left) {
+        gap: 0rem !important;
+    }
+    div[data-testid="stColumn"]:has(.st-key-resp_arrow_left),
+    div[data-testid="stColumn"]:has(.st-key-resp_indicator),
+    div[data-testid="stColumn"]:has(.st-key-resp_arrow_right) {
+        flex: 0 0 auto !important;
+        width: fit-content !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+    }
+    .st-key-resp_arrow_left {
+        margin-top: 8px !important;
+        margin-right: 5px !important;
+        padding: 0 !important;
+    }
+    .st-key-resp_arrow_right {
+        margin-top: 8px !important;
+    }
+    .st-key-resp_indicator {
+        margin-right: 5px !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.st-key-resp_arrow_left) {
+        gap: 0.25rem !important;
+    }
+    .response-eval-pager-indicator {
+        color: #6b7280;
+        font-size: 0.90rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .response-eval-score-text {
+        text-align: right;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+    .response-eval-topic-pill {
+        display: inline-block;
+        padding: 5px 50px;
+        border-radius: 999px;
+        background: rgba(0, 84, 163, 0.08);
+        color: #0054a3;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 1.8rem;
+    }
+    .response-eval-question {
+        font-size: 1.05rem;
+        font-weight: 500;
+        color: #111827;
+        margin: 0.5rem 0 1.2rem 0;
+    }
+    .response-eval-section-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        color: #374151;
+        font-size: 0.88rem;
+        margin-bottom: 5px;
+        margin-top: 2rem;
+    }
+    .response-eval-answer-box {
+        background: rgba(148, 163, 184, 0.07);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        color: #374151;
+        margin-bottom: 1.3rem;
+    }
+    .response-eval-takeaways-list {
+        margin: 0 0 16px 0;
+        padding-left: 1.2rem;
+        color: #374151;
+    }
+    .response-eval-takeaways-list li {
+        margin-bottom: 4px;
     }
 
     hr {
@@ -494,6 +766,13 @@ def apply_custom_styles():
         f"}}</style>",
         unsafe_allow_html=True,
     )
+    st.markdown(
+        f'<style>'
+        f'.st-key-resp_arrow_left div.stButton > button {{ background-image: url("{ARROW_LEFT_ICON_URI}"); }}'
+        f'.st-key-resp_arrow_right div.stButton > button {{ background-image: url("{ARROW_RIGHT_ICON_URI}"); }}'
+        f'</style>',
+        unsafe_allow_html=True,
+    )
 
 
 LOGO_MIME_TYPES = {
@@ -615,45 +894,219 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
                 )
 
 
-def render_evaluation(evaluation):
-    """Renders a structured InterviewEvaluation (see schemas.py)."""
-    for i, q in enumerate(evaluation.questions, start=1):
-        st.markdown(
-            f'<div class="card">'
-            f'<b>Question {i}: {html.escape(q.topic)}</b>'
-            f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
-            f'<span style="color:#6b7280;">Asked:</span> {html.escape(q.question_asked)}<br/>'
-            f'<span style="color:#6b7280;">Candidate:</span> {html.escape(q.candidate_response_summary)}<br/>'
-            f'<b>Score:</b> {q.score}/10<br/>'
-            f'<span style="color:#6b7280;">{html.escape(q.critique)}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**✅ Top Strengths**")
-        for item in evaluation.top_strengths:
-            st.markdown(f"- {item}")
-    with col2:
-        st.markdown("**📈 Areas for Improvement**")
-        for item in evaluation.areas_for_improvement:
-            st.markdown(f"- {item}")
-
-    st.markdown("---")
-    st.markdown(f"**Final Verdict:** {evaluation.final_verdict}")
-
-
-def render_score_badge(score_val: float):
-    """Renders the circular score badge."""
-    color = "#22C55E" if score_val >= 7.5 else "#F59E0B" if score_val >= 5 else "#EF4444"
+def _render_insight_card(icon: str, title: str, body_html: str):
     st.markdown(
-        f"""
-        <div class="score-wrap">
-            <div class="score-badge" style="background:{color};">{score_val:g}</div>
-            <div class="score-caption">Overall score out of 10</div>
-        </div>
-        """,
+        f'<div class="insight-card">'
+        f'<div class="insight-card-title"><span>{icon}</span><span>{html.escape(title)}</span></div>'
+        f'{body_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
-    st.markdown("<hr/>", unsafe_allow_html=True)
+
+
+def render_evaluation(evaluation, turns):
+    """Renders a structured InterviewEvaluation (see schemas.py) alongside the
+    original interview turns, which supply the ground-truth question text and
+    the candidate's verbatim answer for each entry.
+    """
+    _render_insight_card("📊", "Overall Performance", f"<p>{html.escape(evaluation.overall_summary)}</p>")
+
+    strengths_html = "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.top_strengths) + "</ul>"
+    _render_insight_card("✅", "Top Strengths", strengths_html)
+
+    improvements_html = (
+        "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.areas_for_improvement) + "</ul>"
+    )
+    _render_insight_card("🔍", "Areas for Improvement", improvements_html)
+
+    with st.container(key="response_eval_title"):
+        st.markdown("#### 💬 Response Evaluation")
+    render_response_evaluation(evaluation, turns)
+
+
+TIER_LABELS = ("Poor", "Average", "Excellent")
+TIER_COLORS = ("#EF4444", "#F59E0B", "#2DD4BF")
+TIER_VERDICTS = ("Needs Improvement", "Solid Performance", "Strong Performance")
+
+
+def _tier_index(score_val: float) -> int:
+    """0 = Poor (1-3), 1 = Average (4-7), 2 = Excellent (8-10)."""
+    if score_val >= 8:
+        return 2
+    if score_val >= 4:
+        return 1
+    return 0
+
+
+def _score_color(score_val: float) -> str:
+    return TIER_COLORS[_tier_index(score_val)]
+
+
+# Visual order for the 2x2 criteria grid: Role Fit / Problem-Solving on top,
+# Depth & Substance / Communication on the bottom.
+SCORE_GRID_ORDER = ("Role Fit", "Problem-Solving", "Depth & Substance", "Communication")
+
+CRITERIA_HELP_TEXT = {
+    "Communication": "How clear, articulate, and well-structured the candidate's communication was.",
+    "Depth & Substance": "How much concrete depth, detail, and evidence the candidate's answers contained.",
+    "Problem-Solving": "The quality of the candidate's reasoning and problem-solving approach.",
+    "Role Fit": "How well the candidate's background and answers align with what the role requires.",
+}
+
+
+RING_SIZE = 128
+RING_THICKNESS = 14
+
+
+def _render_ring_html(
+    value: float,
+    color: str,
+    size: int = RING_SIZE,
+    thickness: int = RING_THICKNESS,
+    inner_bg: str = "#04203f",
+    font_size: str = "1.5rem",
+) -> str:
+    """Builds a circular progress ring (conic-gradient) for a 0-10 value.
+
+    Two small dots are positioned at the start and end of the arc (via trig
+    on the percentage) to fake a round linecap, since conic-gradient itself
+    can only draw a hard edge. Reused for both the large overall-score ring
+    and the small per-question rings, which sit on different backgrounds
+    (dark score card vs. light response-evaluation card) — hence inner_bg.
+    """
+    pct = value / 10 * 100
+    center = size / 2
+    radius = center - thickness / 2
+
+    def cap_style(p):
+        theta = (p / 100) * 2 * math.pi
+        x = center + radius * math.sin(theta) - thickness / 2
+        y = center - radius * math.cos(theta) - thickness / 2
+        return f"left:{x:.1f}px; top:{y:.1f}px; width:{thickness}px; height:{thickness}px; background:{color};"
+
+    inner_size = size - thickness * 2
+    return (
+        f'<div class="score-ring" style="width:{size}px; height:{size}px; '
+        f'background: conic-gradient({color} {pct}%, rgba(255, 255, 255, 0.12) 0%);">'
+        f'<div class="score-ring-cap" style="{cap_style(0)}"></div>'
+        f'<div class="score-ring-cap" style="{cap_style(pct)}"></div>'
+        f'<div class="score-ring-inner" style="width:{inner_size}px; height:{inner_size}px; background:{inner_bg};">'
+        f'<span class="score-ring-value" style="color:{color}; font-size:{font_size};">{value:g}/10</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+
+def _criterion_box_html(label: str, value: float) -> str:
+    tier = _tier_index(value)
+    color = TIER_COLORS[tier]
+    pct = value / 10 * 100
+    helper_text = html.escape(CRITERIA_HELP_TEXT.get(label, ""))
+    return (
+        f'<div class="score-criterion-box">'
+        f'<div class="score-criterion-title">{html.escape(label)}</div>'
+        f'<div class="score-criterion-helper">{helper_text}</div>'
+        f'<div class="score-tier-track">'
+        f'<div class="score-tier-fill" style="width:{pct}%; background:{color};"></div>'
+        f'</div>'
+        f'<div class="score-tier-label" style="color:{color};">'
+        f'<span>{TIER_LABELS[tier]}</span><span>{value:.1f}/10</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+
+def render_score_overview(evaluation):
+    """Renders one card combining a circular overall score progress ring with
+    a 2x2 grid of criterion boxes, each showing a segmented 3-tier bar
+    (Poor / Average / Excellent) for the four supporting criteria.
+    """
+    overall = evaluation.clamped_overall_score()
+    overall_color = _score_color(overall)
+    overall_verdict = TIER_VERDICTS[_tier_index(overall)]
+    scores_by_label = dict(evaluation.criteria_scores())
+
+    boxes_html = "".join(_criterion_box_html(label, scores_by_label[label]) for label in SCORE_GRID_ORDER)
+    ring_html = _render_ring_html(overall, overall_color)
+
+    st.markdown(
+        f'<div class="card score-overview-card">'
+        f'<div class="score-ring-box">'
+        f'{ring_html}'
+        f'<div class="score-caption">Overall Score</div>'
+        f'<div class="score-verdict">{overall_verdict}</div>'
+        f'</div>'
+        f'<div class="score-overview-bars">{boxes_html}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _step_response_eval_question(delta: int):
+    st.session_state.feedback_selected_q = st.session_state.get("feedback_selected_q", 0) + delta
+
+
+def render_response_evaluation(evaluation, turns):
+    """Renders one question at a time in a detail card.
+
+    Layout: the prev/next SVG arrows share a row with the "Question X of N"
+    indicator; that row plus the topic pill below it form a column; and
+    that column shares a row with the score on the right.
+    """
+    if "feedback_selected_q" not in st.session_state:
+        st.session_state.feedback_selected_q = 0
+    total = len(evaluation.questions)
+    selected = max(0, min(st.session_state.feedback_selected_q, total - 1))
+    st.session_state.feedback_selected_q = selected
+
+    q = evaluation.questions[selected]
+    turn = turns[selected]
+    color = _score_color(q.score)
+    takeaways_html = "".join(f"<li>{html.escape(t)}</li>" for t in q.key_takeaways)
+
+    with st.container(key="response_eval_detail"):
+        with st.container(key="response_eval_pager"):
+            left_col, score_col = st.columns([4, 1])
+            with left_col:
+                arrow_l_col, indicator_col, arrow_r_col = st.columns([1, 1, 1])
+                with arrow_l_col:
+                    with st.container(key="resp_arrow_left"):
+                        st.button(
+                            "",
+                            key="resp_prev_btn",
+                            on_click=_step_response_eval_question,
+                            args=(-1,),
+                            disabled=selected == 0,
+                        )
+                with indicator_col:
+                    st.markdown(
+                        f'<div class="response-eval-pager-indicator">Question {selected + 1} of {total}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with arrow_r_col:
+                    with st.container(key="resp_arrow_right"):
+                        st.button(
+                            "",
+                            key="resp_next_btn",
+                            on_click=_step_response_eval_question,
+                            args=(1,),
+                            disabled=selected == total - 1,
+                        )
+            with score_col:
+                st.markdown(
+                    f'<div class="response-eval-score-text" style="color:{color};">Score: {q.score}/10</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f'<span class="response-eval-topic-pill">{html.escape(q.topic)}</span>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown(
+            f'<div class="response-eval-question">{html.escape(turn["displayed_question"])}</div>'
+            f'<div class="response-eval-section-label"><span>🙋</span><span>Your Answer</span></div>'
+            f'<div class="response-eval-answer-box">{html.escape(turn["answer"] or "")}</div>'
+            f'<div class="response-eval-section-label"><span>🔑</span><span>Key Takeaways</span></div>'
+            f'<ul class="response-eval-takeaways-list">{takeaways_html}</ul>',
+            unsafe_allow_html=True,
+        )
