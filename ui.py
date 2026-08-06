@@ -15,16 +15,17 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 def _svg_data_uri(path: Path) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
-def _svg_data_uri_from_string(svg: str) -> str:
-    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
-
 REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
 BRIEFCASE_ICON_URI = _svg_data_uri(ICON_DIR / "briefcase.svg")
 EXPERIENCE_ICON_URI = _svg_data_uri(ICON_DIR / "experience.svg")
 SKILLS_ICON_URI = _svg_data_uri(ICON_DIR / "skills.svg")
-ARROW_LEFT_ICON_URI = _svg_data_uri_from_string('<svg fill="#000000" width="50px" height="50px" viewBox="-96 0 512 512" xmlns="http://www.w3.org/2000/svg"><path transform="rotate(90 160 256)" d="M41 288h238c21.4 0 32.1 25.9 17 41L177 448c-9.4 9.4-24.6 9.4-33.9 0L24 329c-15.1-15.1-4.4-41 17-41z"/></svg>')
-ARROW_RIGHT_ICON_URI = _svg_data_uri_from_string('<svg fill="#000000" width="50px" height="50px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 18l6-6-6-6"/></svg>')
-
+BAR_CHART_ICON_URI = _svg_data_uri(ICON_DIR / "bar-chart.svg")
+STRENGTHS_ICON_URI = _svg_data_uri(ICON_DIR / "strengths.svg")
+IMPROVEMENT_ICON_URI = _svg_data_uri(ICON_DIR / "improvement.svg")
+EVALUATION_ICON_URI = _svg_data_uri(ICON_DIR / "evaluation.svg")
+CHAT_ICON_URI = _svg_data_uri(ICON_DIR / "chat.svg")
+KEY_ICON_URI = _svg_data_uri(ICON_DIR / "key.svg")
+FEEDBACK_ICON_URI = _svg_data_uri(ICON_DIR / "feedback.svg")
 CUSTOM_CSS = """
 <style>
     /* ---- Hide default Streamlit menu and footer ---- */
@@ -231,6 +232,13 @@ CUSTOM_CSS = """
         font-weight: 600 !important;
         padding: 0.5rem 1.4rem !important;
         border: none !important;
+        white-space: nowrap !important;
+    }
+
+    /* ---- Restart Interview button: extra breathing room above it, since
+       it sits directly under the response evaluation accordion. ---- */
+    .st-key-btn_restart {
+        margin-top: 2rem;
     }
 
     /* ---- Secondary form submit buttons ---- */
@@ -419,9 +427,11 @@ CUSTOM_CSS = """
         margin: 0;
     }
 
-    /* ---- Response evaluation: a single detail card shows one question at
-       a time, with bare SVG-icon prev/next arrows (no button chrome)
-       sitting right next to the "Question X of N" indicator. ---- */
+    /* ---- Response evaluation: each question renders as an accordion item
+       built from native <details>/<summary>, so expanding/collapsing needs
+       no Streamlit rerun. The <summary> header holds the topic pill,
+       question text, and score; the body holds the answer and key
+       takeaways. ---- */
     /* Streamlit's flex column adds each element's own margins rather than
        collapsing them, so this must net out to the same total gap as
        .card's margin-bottom above: 3rem total minus the preceding
@@ -429,103 +439,77 @@ CUSTOM_CSS = """
     .st-key-response_eval_title {
         margin-top: 1.8rem;
     }
-    .st-key-response_eval_detail {
+    .response-eval-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
+    .response-eval-accordion-item {
         background: #fff;
         border: 1px solid rgba(148, 163, 184, 0.18);
         border-radius: 14px;
-        padding: 1.5rem 1.6rem;
-        margin: 1rem 0;
+        padding: 0 1.6rem;
     }
-    /* Vertically center the two narrow arrow columns against the wide
-       middle column's (taller, two-line) content. */
-    .st-key-response_eval_pager div[data-testid="stHorizontalBlock"] {
+    .response-eval-accordion-item[open] {
+        padding-bottom: 1.5rem;
+    }
+    .response-eval-accordion-header {
+        display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 14px;
+        padding: 1.2rem 0;
+        cursor: pointer;
+        list-style: none;
     }
-    /* The SVG itself is the button: no background, border, or padding —
-       just the icon image at button size. */
-    .st-key-resp_arrow_left div.stButton > button,
-    .st-key-resp_arrow_right div.stButton > button {
-        background-color: transparent !important;
-        background-repeat: no-repeat !important;
-        background-position: center !important;
-        background-size: 14px 14px !important;
-        border: none !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        width: 20px !important;
-        height: 20px !important;
-        min-height: 20px !important;
-        min-width: 20px !important;
-    }
-    .st-key-resp_arrow_left div.stButton > button p,
-    .st-key-resp_arrow_right div.stButton > button p {
+    .response-eval-accordion-header::-webkit-details-marker {
         display: none;
     }
-    .st-key-resp_arrow_left div.stButton > button:disabled,
-    .st-key-resp_arrow_right div.stButton > button:disabled {
-        opacity: 0.3 !important;
-        cursor: not-allowed !important;
+    .response-eval-accordion-header::after {
+        content: "";
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        margin-left: 4px;
+        border-right: 2px solid #6b7280;
+        border-bottom: 2px solid #6b7280;
+        transform: rotate(-45deg);
+        transition: transform 0.15s ease;
     }
-    .st-key-resp_arrow_left {
-        margin-right: 5px !important;
+    .response-eval-accordion-item[open] > .response-eval-accordion-header::after {
+        transform: rotate(45deg);
     }
-    .st-key-resp_indicator {
-        margin-right: 5px !important;
+    .response-eval-accordion-body > .response-eval-section-label:first-child {
+        margin-top: 0.5rem;
     }
-    div[data-testid="stHorizontalBlock"]:has(.st-key-resp_arrow_left) {
-        gap: 0rem !important;
+    /* Topic pill + question stack in one column; the mini score ring sits
+       beside that column as its own flex item. */
+    .response-eval-header-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
     }
-    div[data-testid="stColumn"]:has(.st-key-resp_arrow_left),
-    div[data-testid="stColumn"]:has(.st-key-resp_indicator),
-    div[data-testid="stColumn"]:has(.st-key-resp_arrow_right) {
-        flex: 0 0 auto !important;
-        width: fit-content !important;
-        min-width: 0 !important;
-        padding: 0 !important;
-    }
-    .st-key-resp_arrow_left {
-        margin-top: 8px !important;
-        margin-right: 5px !important;
-        padding: 0 !important;
-    }
-    .st-key-resp_arrow_right {
-        margin-top: 8px !important;
-    }
-    .st-key-resp_indicator {
-        margin-right: 5px !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.st-key-resp_arrow_left) {
-        gap: 0.25rem !important;
-    }
-    .response-eval-pager-indicator {
-        color: #6b7280;
-        font-size: 0.90rem;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-    .response-eval-score-text {
-        text-align: right;
-        font-weight: 700;
-        font-size: 0.95rem;
+    .response-eval-accordion-header .score-ring {
+        margin: 0 0 0 32px;
+        flex-shrink: 0;
     }
     .response-eval-topic-pill {
         display: inline-block;
-        padding: 5px 50px;
+        padding: 5px 14px;
         border-radius: 999px;
         background: rgba(0, 84, 163, 0.08);
         color: #0054a3;
         font-size: 0.75rem;
         font-weight: 700;
-        margin-top: 1.8rem;
     }
     .response-eval-question {
         font-size: 1.05rem;
         font-weight: 500;
         color: #111827;
-        margin: 0.5rem 0 1.2rem 0;
+        margin: 0;
     }
     .response-eval-section-label {
         display: flex;
@@ -533,7 +517,7 @@ CUSTOM_CSS = """
         gap: 6px;
         font-weight: 700;
         color: #374151;
-        font-size: 0.88rem;
+        font-size: 1.05rem;
         margin-bottom: 5px;
         margin-top: 2rem;
     }
@@ -590,6 +574,19 @@ CUSTOM_CSS = """
         background-color: rgba(240, 242, 246, 0.5);
         border-radius: 8px;
         padding: 16px;
+    }
+
+    /* ---- Chat input box ---- */
+    /* -webkit-appearance/appearance: none is needed for Safari on macOS,
+       which otherwise applies its native rounded "capsule" search-field
+       chrome to the textarea, overriding the authored border-radius below
+       and making the box look pill/circular regardless of this rule. */
+    [data-testid="stChatInput"] > div {
+        border-radius: 20px !important;
+    }
+    [data-testid="stChatInputTextArea"] {
+        -webkit-appearance: none;
+        appearance: none;
     }
 
     /* ---- Typing indicator ---- */
@@ -766,13 +763,6 @@ def apply_custom_styles():
         f"}}</style>",
         unsafe_allow_html=True,
     )
-    st.markdown(
-        f'<style>'
-        f'.st-key-resp_arrow_left div.stButton > button {{ background-image: url("{ARROW_LEFT_ICON_URI}"); }}'
-        f'.st-key-resp_arrow_right div.stButton > button {{ background-image: url("{ARROW_RIGHT_ICON_URI}"); }}'
-        f'</style>',
-        unsafe_allow_html=True,
-    )
 
 
 LOGO_MIME_TYPES = {
@@ -894,6 +884,10 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
                 )
 
 
+def _icon_img(uri: str, size: str = "1em") -> str:
+    return f'<img src="{uri}" style="height:{size}; vertical-align:-0.15em; margin-right:4px;"/>'
+
+
 def _render_insight_card(icon: str, title: str, body_html: str):
     st.markdown(
         f'<div class="insight-card">'
@@ -909,18 +903,22 @@ def render_evaluation(evaluation, turns):
     original interview turns, which supply the ground-truth question text and
     the candidate's verbatim answer for each entry.
     """
-    _render_insight_card("📊", "Overall Performance", f"<p>{html.escape(evaluation.overall_summary)}</p>")
+    _render_insight_card(
+        _icon_img(BAR_CHART_ICON_URI), "Overall Performance", f"<p>{html.escape(evaluation.overall_summary)}</p>"
+    )
 
     strengths_html = "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.top_strengths) + "</ul>"
-    _render_insight_card("✅", "Top Strengths", strengths_html)
+    _render_insight_card(_icon_img(STRENGTHS_ICON_URI), "Top Strengths", strengths_html)
 
     improvements_html = (
         "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.areas_for_improvement) + "</ul>"
     )
-    _render_insight_card("🔍", "Areas for Improvement", improvements_html)
+    _render_insight_card(_icon_img(IMPROVEMENT_ICON_URI), "Areas for Improvement", improvements_html)
 
     with st.container(key="response_eval_title"):
-        st.markdown("#### 💬 Response Evaluation")
+        st.markdown(
+            f'<h4>{_icon_img(EVALUATION_ICON_URI, size="1.2em")} Response Evaluation</h4>', unsafe_allow_html=True
+        )
     render_response_evaluation(evaluation, turns)
 
 
@@ -958,6 +956,10 @@ RING_SIZE = 128
 RING_THICKNESS = 14
 
 
+MINI_RING_SIZE = 60
+MINI_RING_THICKNESS = 6
+
+
 def _render_ring_html(
     value: float,
     color: str,
@@ -965,6 +967,8 @@ def _render_ring_html(
     thickness: int = RING_THICKNESS,
     inner_bg: str = "#04203f",
     font_size: str = "1.5rem",
+    show_denominator: bool = True,
+    track_color: str = "rgba(255, 255, 255, 0.12)",
 ) -> str:
     """Builds a circular progress ring (conic-gradient) for a 0-10 value.
 
@@ -972,7 +976,8 @@ def _render_ring_html(
     on the percentage) to fake a round linecap, since conic-gradient itself
     can only draw a hard edge. Reused for both the large overall-score ring
     and the small per-question rings, which sit on different backgrounds
-    (dark score card vs. light response-evaluation card) — hence inner_bg.
+    (dark score card vs. light response-evaluation card) — hence inner_bg
+    and track_color, which need to stay visible against whichever it is.
     """
     pct = value / 10 * 100
     center = size / 2
@@ -985,13 +990,14 @@ def _render_ring_html(
         return f"left:{x:.1f}px; top:{y:.1f}px; width:{thickness}px; height:{thickness}px; background:{color};"
 
     inner_size = size - thickness * 2
+    value_text = f"{value:g}/10" if show_denominator else f"{value:g}"
     return (
         f'<div class="score-ring" style="width:{size}px; height:{size}px; '
-        f'background: conic-gradient({color} {pct}%, rgba(255, 255, 255, 0.12) 0%);">'
+        f'background: conic-gradient({color} {pct}%, {track_color} 0%);">'
         f'<div class="score-ring-cap" style="{cap_style(0)}"></div>'
         f'<div class="score-ring-cap" style="{cap_style(pct)}"></div>'
         f'<div class="score-ring-inner" style="width:{inner_size}px; height:{inner_size}px; background:{inner_bg};">'
-        f'<span class="score-ring-value" style="color:{color}; font-size:{font_size};">{value:g}/10</span>'
+        f'<span class="score-ring-value" style="color:{color}; font-size:{font_size};">{value_text}</span>'
         f'</div>'
         f'</div>'
     )
@@ -1042,71 +1048,46 @@ def render_score_overview(evaluation):
     )
 
 
-def _step_response_eval_question(delta: int):
-    st.session_state.feedback_selected_q = st.session_state.get("feedback_selected_q", 0) + delta
-
-
 def render_response_evaluation(evaluation, turns):
-    """Renders one question at a time in a detail card.
+    """Renders each question as a collapsible accordion item.
 
-    Layout: the prev/next SVG arrows share a row with the "Question X of N"
-    indicator; that row plus the topic pill below it form a column; and
-    that column shares a row with the score on the right.
+    The header (a <summary>) holds the topic pill and question text
+    stacked in one column, plus a mini score ring; the body holds the
+    candidate's answer and the key takeaways. All items start collapsed.
     """
-    if "feedback_selected_q" not in st.session_state:
-        st.session_state.feedback_selected_q = 0
-    total = len(evaluation.questions)
-    selected = max(0, min(st.session_state.feedback_selected_q, total - 1))
-    st.session_state.feedback_selected_q = selected
-
-    q = evaluation.questions[selected]
-    turn = turns[selected]
-    color = _score_color(q.score)
-    takeaways_html = "".join(f"<li>{html.escape(t)}</li>" for t in q.key_takeaways)
-
-    with st.container(key="response_eval_detail"):
-        with st.container(key="response_eval_pager"):
-            left_col, score_col = st.columns([4, 1])
-            with left_col:
-                arrow_l_col, indicator_col, arrow_r_col = st.columns([1, 1, 1])
-                with arrow_l_col:
-                    with st.container(key="resp_arrow_left"):
-                        st.button(
-                            "",
-                            key="resp_prev_btn",
-                            on_click=_step_response_eval_question,
-                            args=(-1,),
-                            disabled=selected == 0,
-                        )
-                with indicator_col:
-                    st.markdown(
-                        f'<div class="response-eval-pager-indicator">Question {selected + 1} of {total}</div>',
-                        unsafe_allow_html=True,
-                    )
-                with arrow_r_col:
-                    with st.container(key="resp_arrow_right"):
-                        st.button(
-                            "",
-                            key="resp_next_btn",
-                            on_click=_step_response_eval_question,
-                            args=(1,),
-                            disabled=selected == total - 1,
-                        )
-            with score_col:
-                st.markdown(
-                    f'<div class="response-eval-score-text" style="color:{color};">Score: {q.score}/10</div>',
-                    unsafe_allow_html=True,
-                )
-            st.markdown(
-                f'<span class="response-eval-topic-pill">{html.escape(q.topic)}</span>',
-                unsafe_allow_html=True,
-            )
-
-        st.markdown(
-            f'<div class="response-eval-question">{html.escape(turn["displayed_question"])}</div>'
-            f'<div class="response-eval-section-label"><span>🙋</span><span>Your Answer</span></div>'
-            f'<div class="response-eval-answer-box">{html.escape(turn["answer"] or "")}</div>'
-            f'<div class="response-eval-section-label"><span>🔑</span><span>Key Takeaways</span></div>'
-            f'<ul class="response-eval-takeaways-list">{takeaways_html}</ul>',
-            unsafe_allow_html=True,
+    items_html = []
+    for i, q in enumerate(evaluation.questions):
+        turn = turns[i]
+        color = _score_color(q.score)
+        takeaways_html = "".join(f"<li>{html.escape(t)}</li>" for t in q.key_takeaways)
+        ring_html = _render_ring_html(
+            q.score,
+            color,
+            size=MINI_RING_SIZE,
+            thickness=MINI_RING_THICKNESS,
+            inner_bg="#fff",
+            font_size="0.78rem",
+            track_color="rgba(148, 163, 184, 0.25)",
         )
+        items_html.append(
+            f'<details class="response-eval-accordion-item">'
+            f'<summary class="response-eval-accordion-header">'
+            f'<div class="response-eval-header-text">'
+            f'<span class="response-eval-topic-pill">{html.escape(q.topic)}</span>'
+            f'<span class="response-eval-question">{html.escape(turn["displayed_question"])}</span>'
+            f'</div>'
+            f'{ring_html}'
+            f'</summary>'
+            f'<div class="response-eval-accordion-body">'
+            f'<div class="response-eval-section-label"><span>{_icon_img(CHAT_ICON_URI)}</span><span>Your Answer</span></div>'
+            f'<div class="response-eval-answer-box">{html.escape(turn["answer"] or "")}</div>'
+            f'<div class="response-eval-section-label"><span>{_icon_img(KEY_ICON_URI)}</span><span>Key Takeaways</span></div>'
+            f'<ul class="response-eval-takeaways-list">{takeaways_html}</ul>'
+            f'</div>'
+            f'</details>'
+        )
+
+    st.markdown(
+        f'<div class="response-eval-accordion">{"".join(items_html)}</div>',
+        unsafe_allow_html=True,
+    )
