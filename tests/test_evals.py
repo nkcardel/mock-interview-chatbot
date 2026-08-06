@@ -2,7 +2,7 @@
 Model evaluation suite.
 
 Run explicitly:
-    pytest test_evals.py -v -m model_eval
+    pytest tests/test_evals.py -v -m model_eval
 
 Requires OPENAI_API_KEY in the environment.
 """

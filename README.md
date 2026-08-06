@@ -12,7 +12,7 @@ Beyond the app itself, the project includes a separate **evaluation suite** that
 
 This project began from a course exercise (a basic Streamlit mock-interview chatbot) and has been substantially extended since. What's original to this repo:
 
-- **Eval suite** (`test_evals.py`, `eval_cache.py`) — LLM-as-judge tests that check whether interview questions stay on-topic and appropriately scoped for the candidate's seniority level, plus a grader-consistency test that measures scoring variance across repeated runs on an identical transcript.
+- **Eval suite** (`tests/test_evals.py`, `eval_cache.py`) — LLM-as-judge tests that check whether interview questions stay on-topic and appropriately scoped for the candidate's seniority level, plus a grader-consistency test that measures scoring variance across repeated runs on an identical transcript.
 - **Disk-based response caching** — API calls in the eval suite are cached by a hash of their full payload (model, prompt, temperature, run index), so the suite replays for free and deterministically after the first live run, with an `EVAL_CACHE_REFRESH` env var to force fresh recordings.
 - **Structured outputs** (`schemas.py`) — feedback generation uses `response_format` with a Pydantic schema instead of parsing markdown, with defensive score clamping since schema conformance doesn't guarantee the value lands in the intended numeric range.
 - **Granular error handling** — auth, rate-limit, timeout, and other API errors are caught and surfaced separately in the UI rather than one blanket exception handler.
@@ -46,7 +46,7 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 - The API can also return a `refusal` instead of a parsed result; this is checked explicitly rather than assumed away.
 - The feedback screen renders this as a circular overall-score ring plus a 2x2 grid of criterion bars, and a collapsible per-question accordion (topic, question, a mini score ring, the candidate's answer, and key takeaways).
 
-**4. Evaluation suite (`test_evals.py`, `eval_cache.py`)**
+**4. Evaluation suite (`tests/test_evals.py`, `eval_cache.py`)**
 
 - `test_setup_questions_stay_on_topic` — runs a simulated 3-turn interview per fixed candidate profile, then uses a second LLM call (`QuestionJudgement`, also a structured output) to judge whether each generated question was topically relevant and level-appropriate.
 - `test_grader_score_consistency` — runs the grader against one fixed transcript 5 times and asserts the score spread stays within a tolerance, to catch cases where the evaluator's scoring drifts across identical inputs.
@@ -72,7 +72,8 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 ├── prompts.py             # System prompts and interview constants
 ├── schemas.py             # Pydantic schemas for structured-output evaluation
 ├── eval_cache.py          # Disk-based cache for eval-suite API calls
-├── test_evals.py          # LLM-as-judge + grader-consistency eval suite (pytest, model_eval marker)
+├── tests/
+│   └── test_evals.py      # LLM-as-judge + grader-consistency eval suite (pytest, model_eval marker)
 ├── requirements.txt       # Python dependencies
 ├── pyproject.toml         # Project metadata, pytest marker config
 ├── .gitignore
@@ -103,7 +104,7 @@ The eval suite calls the OpenAI API and is excluded from a plain `pytest` run. R
 
 ```
 $env:OPENAI_API_KEY = "your_key_here"   # PowerShell
-pytest test_evals.py -v -m model_eval
+pytest tests/test_evals.py -v -m model_eval
 ```
 
 > Note: this only sets the variable for the current terminal session — you'll need to set it again each time you open a new one. For cmd.exe instead of PowerShell, use `set OPENAI_API_KEY=your_key_here`.
