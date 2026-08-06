@@ -30,16 +30,18 @@ Set EVAL_CACHE_REFRESH=1 in the environment to bypass existing cache
 entries for a run and re-record fresh ones (useful when you've changed
 prompts.py and want new recordings without deleting old ones by hand).
 """
+
 import hashlib
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any
 
 CACHE_DIR = Path(__file__).parent / ".eval_cache"
 
 
-def _cache_key(payload: Dict[str, Any]) -> str:
+def _cache_key(payload: dict[str, Any]) -> str:
     """Stable hash of a JSON-serializable payload dict."""
     serialized = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -49,7 +51,9 @@ def _force_refresh() -> bool:
     return os.environ.get("EVAL_CACHE_REFRESH", "") == "1"
 
 
-def cached_call(name: str, payload: Dict[str, Any], live_fn: Callable[[], Dict[str, Any]]) -> Dict[str, Any]:
+def cached_call(
+    name: str, payload: dict[str, Any], live_fn: Callable[[], dict[str, Any]]
+) -> dict[str, Any]:
     """Return a cached JSON-serializable result for (name, payload), calling
     live_fn() and recording its result on a cache miss (or on forced refresh).
 

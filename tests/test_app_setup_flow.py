@@ -3,6 +3,7 @@ call happens). Driven with Streamlit's official AppTest harness, which runs
 the real script and widget callbacks end to end without a network dependency
 or a running server.
 """
+
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
@@ -25,7 +26,9 @@ def _fresh_app() -> AppTest:
     return at
 
 
-def _fill_step1(at: AppTest, name="Jamie", experience="3 years in data", skills="Python, SQL") -> AppTest:
+def _fill_step1(
+    at: AppTest, name="Jamie", experience="3 years in data", skills="Python, SQL"
+) -> AppTest:
     at.text_input(key="input_name").set_value(name)
     at.text_area(key="input_experience").set_value(experience)
     at.text_area(key="input_skills").set_value(skills)
@@ -108,7 +111,9 @@ class TestStep2CompanySelection:
     def test_custom_company_link_switches_to_custom_subview(self):
         at = _fresh_app()
         _fill_step1(at)
-        at.button(key="FormSubmitter:company_select_form-Create a custom company profile").click().run()
+        at.button(
+            key="FormSubmitter:company_select_form-Create a custom company profile"
+        ).click().run()
 
         assert at.session_state.company_option == "custom"
         assert at.session_state.setup_step == 2
@@ -117,7 +122,9 @@ class TestStep2CompanySelection:
 class TestStep2CustomCompany:
     def _to_custom_company(self, at: AppTest) -> AppTest:
         _fill_step1(at)
-        at.button(key="FormSubmitter:company_select_form-Create a custom company profile").click().run()
+        at.button(
+            key="FormSubmitter:company_select_form-Create a custom company profile"
+        ).click().run()
         return at
 
     def test_submitting_empty_custom_form_blocks_advance(self):
@@ -241,7 +248,9 @@ class TestStepIndicatorNavigation:
     def test_navigating_back_to_step_2_after_custom_company_reopens_custom_view(self):
         at = _fresh_app()
         _fill_step1(at)
-        at.button(key="FormSubmitter:company_select_form-Create a custom company profile").click().run()
+        at.button(
+            key="FormSubmitter:company_select_form-Create a custom company profile"
+        ).click().run()
         at.selectbox(key="input_industry").set_value("Healthcare").run()
         at.text_input(key="input_custom_company").set_value("Acme Robotics")
         at.button(key="FormSubmitter:company_custom_form-Next").click().run()
@@ -263,7 +272,9 @@ class TestResetInterview:
 
         evaluation = InterviewEvaluation(
             questions=[
-                QuestionEvaluation(topic="Background", score=7, critique="Fine.", key_takeaways=["x"])
+                QuestionEvaluation(
+                    topic="Background", score=7, critique="Fine.", key_takeaways=["x"]
+                )
             ],
             overall_score=7.5,
             communication_score=8.0,

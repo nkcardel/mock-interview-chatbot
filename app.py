@@ -1,8 +1,8 @@
 import time
 
 import openai
-from openai import OpenAI
 import streamlit as st
+from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 import prompts
@@ -63,7 +63,10 @@ def get_openai_client():
     """Safely initialize OpenAI client checking for secrets."""
     api_key = st.secrets.get("OPENAI_API_KEY")
     if not api_key:
-        st.error("Missing OpenAI API Key. Please add `OPENAI_API_KEY` to your Streamlit secrets.", icon="🔑")
+        st.error(
+            "Missing OpenAI API Key. Please add `OPENAI_API_KEY` to your Streamlit secrets.",
+            icon="🔑",
+        )
         return None
     return OpenAI(api_key=api_key)
 
@@ -71,7 +74,9 @@ def get_openai_client():
 # Rate limits and transient network/server hiccups are worth a few automatic
 # retries; auth failures, refusals, and length errors are not.
 @retry(
-    retry=retry_if_exception_type((openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)),
+    retry=retry_if_exception_type(
+        (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)
+    ),
     wait=wait_exponential(multiplier=1, min=1, max=20),
     stop=stop_after_attempt(4),
     reraise=True,
@@ -295,7 +300,9 @@ def advance_to_position_from_custom():
         return
 
     st.session_state.user_data["company"] = company_name
-    st.session_state.user_data["industry"] = custom_industry if industry == OTHER_INDUSTRY_OPTION else industry
+    st.session_state.user_data["industry"] = (
+        custom_industry if industry == OTHER_INDUSTRY_OPTION else industry
+    )
     st.session_state.user_data["job_description"] = job_description
     st.session_state.user_data["job_requirements"] = job_requirements
     st.session_state.setup_error = None
@@ -326,7 +333,9 @@ def complete_setup():
         st.session_state.invalid_fields = missing
         return
 
-    st.session_state.user_data["position"] = custom_position if position == OTHER_POSITION_OPTION else position
+    st.session_state.user_data["position"] = (
+        custom_position if position == OTHER_POSITION_OPTION else position
+    )
     st.session_state.setup_error = None
     st.session_state.invalid_fields = set()
     st.session_state.setup_complete = True
@@ -428,7 +437,10 @@ if not st.session_state.setup_complete:
                 _, next_col = st.columns([5.15, 1])
                 with next_col:
                     st.form_submit_button(
-                        "Next", type="primary", on_click=advance_to_company, use_container_width=True
+                        "Next",
+                        type="primary",
+                        on_click=advance_to_company,
+                        use_container_width=True,
                     )
 
     elif st.session_state.setup_step == 2 and st.session_state.company_option == "select":
@@ -452,8 +464,8 @@ if not st.session_state.setup_complete:
                 # screen, so coming back via the stepper shows their prior choice.
                 st.markdown(
                     f'<style>.st-key-company_btn_{saved["company"]} button[kind="secondaryFormSubmit"] {{'
-                    f'border: 2px solid #0054A3 !important;'
-                    f'background-color: rgba(28, 131, 255, 0.10) !important;'
+                    f"border: 2px solid #0054A3 !important;"
+                    f"background-color: rgba(28, 131, 255, 0.10) !important;"
                     f"}}</style>",
                     unsafe_allow_html=True,
                 )
@@ -475,7 +487,7 @@ if not st.session_state.setup_complete:
                 '<div style="width:180px; height:1px; background:rgba(148,163,184,0.35);"></div>'
                 '<span style="padding:0 0.8rem; color:#6b7280; font-size:0.85rem;">or</span>'
                 '<div style="width:180px; height:1px; background:rgba(148,163,184,0.35);"></div>'
-                '</div>',
+                "</div>",
                 unsafe_allow_html=True,
             )
             custom_col, no_company_col = st.columns([1, 1])
@@ -511,11 +523,17 @@ if not st.session_state.setup_complete:
             # Rendered outside the form below so picking "Other" reveals the
             # follow-up field immediately: st.form only reruns on submit, and
             # Streamlit disallows on_change callbacks on widgets inside a form.
-            industry_is_custom = bool(saved["industry"]) and saved["industry"] not in INDUSTRY_OPTIONS
+            industry_is_custom = (
+                bool(saved["industry"]) and saved["industry"] not in INDUSTRY_OPTIONS
+            )
             industry_index = (
                 INDUSTRY_OPTIONS.index(OTHER_INDUSTRY_OPTION)
                 if industry_is_custom
-                else (INDUSTRY_OPTIONS.index(saved["industry"]) if saved["industry"] in INDUSTRY_OPTIONS else 0)
+                else (
+                    INDUSTRY_OPTIONS.index(saved["industry"])
+                    if saved["industry"] in INDUSTRY_OPTIONS
+                    else 0
+                )
             )
             st.selectbox(
                 "Target Industry *",
@@ -560,7 +578,10 @@ if not st.session_state.setup_complete:
                     _, back_col, next_col = st.columns([4, 1, 1])
                     with back_col:
                         st.form_submit_button(
-                            "Back", type="secondary", on_click=back_to_select, use_container_width=True
+                            "Back",
+                            type="secondary",
+                            on_click=back_to_select,
+                            use_container_width=True,
                         )
                     with next_col:
                         st.form_submit_button(
@@ -582,12 +603,18 @@ if not st.session_state.setup_complete:
                 with st.container(key="required_field_error"):
                     st.error(st.session_state.setup_error)
                 render_invalid_field_borders(st.session_state.invalid_fields)
-                
-            position_is_custom = bool(saved["position"]) and saved["position"] not in POSITION_OPTIONS
+
+            position_is_custom = (
+                bool(saved["position"]) and saved["position"] not in POSITION_OPTIONS
+            )
             position_index = (
                 POSITION_OPTIONS.index(OTHER_POSITION_OPTION)
                 if position_is_custom
-                else (POSITION_OPTIONS.index(saved["position"]) if saved["position"] in POSITION_OPTIONS else 0)
+                else (
+                    POSITION_OPTIONS.index(saved["position"])
+                    if saved["position"] in POSITION_OPTIONS
+                    else 0
+                )
             )
             st.selectbox(
                 "Choose a position *",
@@ -611,8 +638,8 @@ if not st.session_state.setup_complete:
                 # Highlight whichever tile is currently selected
                 level_highlight_style = (
                     f'<style>.st-key-level_btn_{saved["level"]} button[kind="secondary"] {{'
-                    f'border: 2px solid #0054A3 !important;'
-                    f'background-color: rgba(28, 131, 255, 0.10) !important;'
+                    f"border: 2px solid #0054A3 !important;"
+                    f"background-color: rgba(28, 131, 255, 0.10) !important;"
                     f"}}</style>"
                 )
 
@@ -636,12 +663,17 @@ if not st.session_state.setup_complete:
 
             with st.form("position_form"):
                 total_questions = prompts.DB_QUESTION_COUNT + prompts.GENERATED_QUESTION_COUNT
-                st.caption(f"You'll be asked {total_questions} questions tailored to this role. Takes about 5 minutes.")
+                st.caption(
+                    f"You'll be asked {total_questions} questions tailored to this role. Takes about 5 minutes."
+                )
 
                 _, next_col = st.columns([4, 2])
                 with next_col:
                     st.form_submit_button(
-                        "Start Interview", type="primary", on_click=complete_setup, use_container_width=True
+                        "Start Interview",
+                        type="primary",
+                        on_click=complete_setup,
+                        use_container_width=True,
                     )
 
 # ---------------------------
@@ -651,18 +683,18 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
     data = st.session_state.user_data
 
     # Updated HTML card to include user's Experience and Skills
-    company_suffix = f' at <b>{data["company"]}</b>' if data["company"] else ""
-    level_prefix = f'{data["level"]} ' if data["level"] else ""
+    company_suffix = f" at <b>{data['company']}</b>" if data["company"] else ""
+    level_prefix = f"{data['level']} " if data["level"] else ""
     st.markdown(
         f'<div class="card">'
         f'<img src="{BRIEFCASE_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
-        f'Interviewing for <b>{level_prefix}{data["position"]}</b>{company_suffix}'
+        f"Interviewing for <b>{level_prefix}{data['position']}</b>{company_suffix}"
         f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
         f'<b><img src="{EXPERIENCE_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
-        f'Experience:</b> {data["experience"] or "None provided"}<br/>'
+        f"Experience:</b> {data['experience'] or 'None provided'}<br/>"
         f'<b><img src="{SKILLS_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
-        f'Skills:</b> {data["skills"] or "None provided"}'
-        f'</div>',
+        f"Skills:</b> {data['skills'] or 'None provided'}"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -700,7 +732,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                     message = completion.choices[0].message
 
                     if message.refusal:
-                        st.error(f"Could not prepare interview questions: {message.refusal}", icon="⚠️")
+                        st.error(
+                            f"Could not prepare interview questions: {message.refusal}", icon="⚠️"
+                        )
                     else:
                         st.session_state.setup_questions = [
                             {"category": q.question_category, "text": q.question_text}
@@ -710,11 +744,16 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                 except openai.AuthenticationError:
                     st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
                 except openai.RateLimitError:
-                    st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
+                    st.error(
+                        "Rate limit exceeded or insufficient quota. Please try again later.",
+                        icon="⏳",
+                    )
                 except (openai.APITimeoutError, openai.APIConnectionError):
                     st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
                 except openai.LengthFinishReasonError:
-                    st.error("The response was cut off before it completed. Please try again.", icon="✂️")
+                    st.error(
+                        "The response was cut off before it completed. Please try again.", icon="✂️"
+                    )
                 except openai.OpenAIError as e:
                     st.error(f"An API error occurred: {e.message}", icon="❌")
     else:
@@ -731,7 +770,6 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                     "is_follow_up": False,
                 }
             ]
-
 
         with st.container(key="feedback_loading_chat"):
             # Render conversation so far
@@ -750,14 +788,18 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
 
             if st.session_state.chat_complete:
                 st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
-                st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
+                st.button(
+                    "Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback"
+                )
 
                 scroll_chat_to_bottom()
 
         if not st.session_state.chat_complete:
             current_index = len(st.session_state.turns) - 1
             current_turn = st.session_state.turns[current_index]
-            st.caption(f"Question {current_index + 1} of {total_questions} — {current_turn['category']}")
+            st.caption(
+                f"Question {current_index + 1} of {total_questions} — {current_turn['category']}"
+            )
 
             if st.session_state.interview_error:
                 error_message, error_icon = st.session_state.interview_error
@@ -769,7 +811,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
             # call starts, rather than disabling and calling the API in the same
             # pass (which would send the disabled state and the response together).
             chat_input_placeholder = (
-                "Waiting for the interviewer's response..." if st.session_state.awaiting_llm else "Your answer."
+                "Waiting for the interviewer's response..."
+                if st.session_state.awaiting_llm
+                else "Your answer."
             )
             prompt = st.chat_input(
                 chat_input_placeholder, max_chars=1000, disabled=st.session_state.awaiting_llm
@@ -818,7 +862,9 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                             "content": prompts.get_humanizer_prompt(
                                                 current_question=questions[next_index]["text"],
                                                 current_category=questions[next_index]["category"],
-                                                previous_question=current_turn["predefined_question"],
+                                                previous_question=current_turn[
+                                                    "predefined_question"
+                                                ],
                                                 previous_response=prompt,
                                                 follow_up_allowed=follow_up_allowed,
                                             ),
@@ -901,7 +947,10 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 st.rerun()
                             except openai.OpenAIError as e:
                                 typing_placeholder.empty()
-                                st.session_state.interview_error = (f"An API error occurred: {e.message}", "❌")
+                                st.session_state.interview_error = (
+                                    f"An API error occurred: {e.message}",
+                                    "❌",
+                                )
                                 current_turn["answer"] = None
                                 st.session_state.awaiting_llm = False
                                 st.rerun()
@@ -916,7 +965,7 @@ if st.session_state.feedback_shown:
     )
     st.markdown(
         f'<h3><img src="{FEEDBACK_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
-        f'Feedback</h3>',
+        f"Feedback</h3>",
         unsafe_allow_html=True,
     )
     with st.container(key="feedback_step_caption"):
@@ -941,7 +990,10 @@ if st.session_state.feedback_shown:
                         model=prompts.MODEL_NAME,
                         messages=[
                             {"role": "system", "content": prompts.EVALUATION_SYSTEM_PROMPT},
-                            {"role": "user", "content": prompts.get_evaluation_user_prompt(conversation_history)},
+                            {
+                                "role": "user",
+                                "content": prompts.get_evaluation_user_prompt(conversation_history),
+                            },
                         ],
                         temperature=0.2,
                         top_p=0.9,
@@ -953,25 +1005,38 @@ if st.session_state.feedback_shown:
                     # Structured outputs adds a failure mode .create() didn't have:
                     # the model can decline to answer instead of returning the schema.
                     if message.refusal:
-                        st.error(f"The model declined to generate feedback: {message.refusal}", icon="⚠️")
+                        st.error(
+                            f"The model declined to generate feedback: {message.refusal}", icon="⚠️"
+                        )
                     else:
                         evaluation = message.parsed
                         # We already know each question's real category from LLM 1 — use
                         # that ground truth instead of trusting the evaluator to re-derive it.
-                        for q_eval, turn in zip(evaluation.questions, st.session_state.turns):
+                        for q_eval, turn in zip(
+                            evaluation.questions, st.session_state.turns, strict=False
+                        ):
                             q_eval.topic = turn["category"]
                         st.session_state.feedback_data = evaluation
 
                 except openai.AuthenticationError:
-                    st.error("Authentication failed while fetching evaluation. Check API key.", icon="🚨")
+                    st.error(
+                        "Authentication failed while fetching evaluation. Check API key.", icon="🚨"
+                    )
                 except openai.RateLimitError:
-                    st.error("Rate limit hit during evaluation. Please try again shortly.", icon="⏳")
+                    st.error(
+                        "Rate limit hit during evaluation. Please try again shortly.", icon="⏳"
+                    )
                 except (openai.APITimeoutError, openai.APIConnectionError):
                     st.error("Network timeout during feedback generation.", icon="📡")
                 except openai.LengthFinishReasonError:
-                    st.error("The evaluation response was cut off before it completed. Please try again.", icon="✂️")
+                    st.error(
+                        "The evaluation response was cut off before it completed. Please try again.",
+                        icon="✂️",
+                    )
                 except openai.OpenAIError as e:
-                    st.error(f"Failed to generate feedback due to an API error: {e.message}", icon="❌")
+                    st.error(
+                        f"Failed to generate feedback due to an API error: {e.message}", icon="❌"
+                    )
 
     if "feedback_data" in st.session_state:
         evaluation = st.session_state.feedback_data
