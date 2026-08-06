@@ -118,7 +118,9 @@ def generate_setup_questions(profile: dict, db_questions: list) -> list:
             temperature=0.7,
             response_format=SetupResult,
         )
-        return completion.choices[0].message.parsed.model_dump()
+        parsed = completion.choices[0].message.parsed
+        assert parsed is not None, "OpenAI response failed to parse into SetupResult"
+        return parsed.model_dump()
 
     return cached_call("setup_questions", payload, _live)["questions"]
 
@@ -149,7 +151,9 @@ def judge_question(question: str, profile: dict) -> QuestionJudgement:
             response_format=QuestionJudgement,
             temperature=0,
         )
-        return completion.choices[0].message.parsed.model_dump()
+        parsed = completion.choices[0].message.parsed
+        assert parsed is not None, "OpenAI response failed to parse into QuestionJudgement"
+        return parsed.model_dump()
 
     return QuestionJudgement(**cached_call("judge_question", payload, _live))
 
@@ -208,7 +212,9 @@ def test_grader_score_consistency():
                 temperature=0.2,
                 response_format=InterviewEvaluation,
             )
-            return {"overall_score": completion.choices[0].message.parsed.overall_score}
+            parsed = completion.choices[0].message.parsed
+            assert parsed is not None, "OpenAI response failed to parse into InterviewEvaluation"
+            return {"overall_score": parsed.overall_score}
 
         scores.append(cached_call("grader_consistency", payload, _live)["overall_score"])
 
