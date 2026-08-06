@@ -31,7 +31,7 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 
 **1. Setup → Interview → Feedback flow**
 
-- Three-step session-state machine (`setup_complete`, `chat_complete`, `feedback_shown`) drives which screen renders, with a step-indicator progress bar (`ui.py`).
+- Three-step session-state machine (`setup_complete`, `chat_complete`, `feedback_shown`) drives which screen renders, with a step-indicator progress bar (`components.py`).
 - Candidate profile (name, experience, skills, level, position, company) is collected via a form and used to build the tailored Setup prompt (`prompts.get_setup_prompt`) described below.
 
 **2. Setup → Humanizer two-LLM interview pipeline**
@@ -77,19 +77,20 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 ## 📂 Repository Structure
 
 ```
-├── app.py                 # Streamlit app — setup, interview, and feedback flow
-├── ui.py                  # Custom CSS, header, step indicator, evaluation rendering
-├── prompts.py             # System prompts and interview constants
-├── schemas.py             # Pydantic schemas for structured-output evaluation
-├── eval_cache.py          # Disk-based cache for eval-suite API calls
+├── app.py                   # Streamlit app — setup, interview, and feedback flow
+├── styles.py                # Custom CSS and SVG icon data URIs
+├── components.py            # Header, step indicator, and evaluation rendering
+├── prompts.py               # System prompts and interview constants
+├── schemas.py               # Pydantic schemas for structured-output evaluation
+├── eval_cache.py            # Disk-based cache for eval-suite API calls
 ├── tests/
 │   ├── test_evals.py          # LLM-as-judge + grader-consistency eval suite (pytest, model_eval marker)
 │   ├── test_schemas.py        # Unit tests for score clamping (schemas.py)
 │   ├── test_question_bank.py  # Unit tests for question sampling (question_bank.py)
 │   └── test_app_setup_flow.py # AppTest-driven tests for the setup-step state machine (app.py)
-├── requirements.txt       # Python dependencies
-├── pyproject.toml         # Project metadata, pytest marker config, ruff + mypy config
-├── .pre-commit-config.yaml # Pre-commit hooks (ruff lint + format, mypy)
+├── requirements.txt         # Python dependencies
+├── pyproject.toml           # Project metadata, pytest marker config, ruff + mypy config
+├── .pre-commit-config.yaml  # Pre-commit hooks (ruff lint + format, mypy)
 ├── .gitignore
 └── README.md
 ```
