@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install -e ".[dev,test]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install -e ".[test]"
+      - name: Unit tests
+        run: pytest -v
+      - name: Eval suite (replayed from committed .eval_cache)
+        # No real OPENAI_API_KEY here on purpose: every call in test_evals.py
+        # is wrapped in cached_call(), so as long as .eval_cache/ already has
+        # a recording for a given payload, this never touches the network.
+        # A cache miss means the payload changed (e.g. a prompt edit) and
+        # fails loudly here instead of silently costing money in CI — run
+        # `EVAL_CACHE_REFRESH=1 pytest tests/test_evals.py -m model_eval`
+        # locally with a real key and commit the refreshed cache.
+        env:
+          OPENAI_API_KEY: ci-placeholder-key-unused-if-cache-hits
+        run: pytest tests/test_evals.py -v -m model_eval

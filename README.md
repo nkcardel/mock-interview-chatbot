@@ -1,5 +1,7 @@
 # Mock Job Interview Chatbot
 
+[![CI](https://github.com/nkcardel/mock-interview-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/nkcardel/mock-interview-chatbot/actions/workflows/ci.yml)
+
 A Streamlit interview-practice chatbot with structured-output scoring and a dedicated LLM evaluation suite — built with the OpenAI API, Pydantic, and pytest.
 
 ## 📌 Project Overview

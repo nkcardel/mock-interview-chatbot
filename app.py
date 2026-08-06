@@ -8,7 +8,6 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 import prompts
 import question_bank
-from schemas import HumanizerTurn, InterviewEvaluation, SetupResult
 from components import (
     render_evaluation,
     render_header,
@@ -17,6 +16,7 @@ from components import (
     render_step_indicator,
     scroll_chat_to_bottom,
 )
+from schemas import HumanizerTurn, InterviewEvaluation, SetupResult
 from styles import (
     BRIEFCASE_ICON_URI,
     EXPERIENCE_ICON_URI,

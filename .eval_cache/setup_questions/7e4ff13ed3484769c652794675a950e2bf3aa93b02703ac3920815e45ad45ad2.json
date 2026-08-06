@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {
+      "question_category": "Background",
+      "question_text": "Walk me through your career so far and what led you to apply for this role at Spotify."
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "What best practices do you follow to ensure your work is reliable and maintainable over time?"
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "Can you describe how you've used PyTorch in building recommendation systems, and how you might apply this to a music streaming platform like Spotify?"
+    },
+    {
+      "question_category": "Situational",
+      "question_text": "Describe a time when you had to conduct an A/B test for a recommendation algorithm. What challenges did you face, and how did you address them?"
+    },
+    {
+      "question_category": "Analytical",
+      "question_text": "How do you approach feature selection and engineering when working with large datasets in a feature store?"
+    },
+    {
+      "question_category": "Brain Teaser",
+      "question_text": "Imagine you are tasked with designing a new recommendation system that has to scale to millions of users globally. What are some of the key challenges you anticipate, and how would you address them?"
+    }
+  ]
+}
