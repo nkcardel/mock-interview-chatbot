@@ -115,4 +115,4 @@ First run records live API responses to `.eval_cache/` (not committed — see `.
 **Developed by:**   
 Nicole Kaye A. Cardel    
 nkcardel@gmail.com  
-*Software Designer & Developer*
+*Software Designer & Developer* | *AI Engineer*
