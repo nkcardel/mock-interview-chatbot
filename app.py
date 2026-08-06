@@ -3,6 +3,7 @@ import time
 import openai
 from openai import OpenAI
 import streamlit as st
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 import prompts
 import question_bank
@@ -51,6 +52,18 @@ def get_openai_client():
         st.error("Missing OpenAI API Key. Please add `OPENAI_API_KEY` to your Streamlit secrets.", icon="🔑")
         return None
     return OpenAI(api_key=api_key)
+
+
+# Rate limits and transient network/server hiccups are worth a few automatic
+# retries; auth failures, refusals, and length errors are not.
+@retry(
+    retry=retry_if_exception_type((openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)),
+    wait=wait_exponential(multiplier=1, min=1, max=20),
+    stop=stop_after_attempt(4),
+    reraise=True,
+)
+def parse_with_retry(client, **kwargs):
+    return client.beta.chat.completions.parse(**kwargs)
 
 
 # ---------------------------
@@ -608,7 +621,8 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
             with st.spinner("Preparing your interview questions..."):
                 db_questions = question_bank.sample_questions(prompts.DB_QUESTION_COUNT)
                 try:
-                    completion = client.beta.chat.completions.parse(
+                    completion = parse_with_retry(
+                        client,
                         model=prompts.MODEL_NAME,
                         messages=[
                             {
@@ -742,7 +756,8 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                             )
                             try:
                                 spinner_start = time.monotonic()
-                                completion = client.beta.chat.completions.parse(
+                                completion = parse_with_retry(
+                                    client,
                                     model=prompts.MODEL_NAME,
                                     messages=[
                                         {
@@ -867,7 +882,8 @@ if st.session_state.feedback_shown:
 
             with st.spinner("Reviewing your answers..."):
                 try:
-                    feedback_completion = feedback_client.beta.chat.completions.parse(
+                    feedback_completion = parse_with_retry(
+                        feedback_client,
                         model=prompts.MODEL_NAME,
                         messages=[
                             {"role": "system", "content": prompts.EVALUATION_SYSTEM_PROMPT},
