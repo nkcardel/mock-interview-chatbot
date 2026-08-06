@@ -58,6 +58,10 @@ CLOSING_MESSAGE = (
 # Floor on how long the "Thinking..." spinner stays up
 MIN_SPINNER_SECONDS = 0.5
 
+# Without this, the client falls back to the SDK default of 10 minutes per
+# request, which leaves the UI spinner hanging far past what a user will wait.
+OPENAI_REQUEST_TIMEOUT_SECONDS = 30.0
+
 
 def get_openai_client():
     """Safely initialize OpenAI client checking for secrets."""
@@ -68,7 +72,7 @@ def get_openai_client():
             icon="🔑",
         )
         return None
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, timeout=OPENAI_REQUEST_TIMEOUT_SECONDS)
 
 
 # Rate limits and transient network/server hiccups are worth a few automatic
