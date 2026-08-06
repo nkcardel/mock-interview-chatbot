@@ -19,7 +19,7 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 
 ## 🛠️ Libraries Used
 
-- **LLM:** `openai` (Chat Completions API, streaming, structured outputs via `.beta.chat.completions.parse`)
+- **LLM:** `openai` (Chat Completions API, structured outputs via `.beta.chat.completions.parse`)
 - **UI:** `streamlit`
 - **Schema / validation:** `pydantic`
 - **Testing:** `pytest` (custom `model_eval` marker for API-calling tests)
@@ -29,24 +29,26 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 **1. Setup → Interview → Feedback flow**
 
 - Three-step session-state machine (`setup_complete`, `chat_complete`, `feedback_shown`) drives which screen renders, with a step-indicator progress bar (`ui.py`).
-- Candidate profile (name, experience, skills, level, position, company) is collected via a form and used to build a tailored system prompt (`prompts.get_interviewer_system_prompt`).
+- Candidate profile (name, experience, skills, level, position, company) is collected via a form and used to build the tailored Setup prompt (`prompts.get_setup_prompt`) described below.
 
-**2. Streaming interview turns**
+**2. Setup → Humanizer two-LLM interview pipeline**
 
-- Each candidate answer is appended to `st.session_state.messages` and sent to the model with `stream=True`, rendered live via `st.write_stream`.
-- On the final question, a `CLOSING_REMARK_PROMPT` system message is appended so the model wraps up instead of asking another question.
-- API failures (`AuthenticationError`, `RateLimitError`, timeout/connection errors, generic `OpenAIError`) are each caught and surfaced with a distinct, user-facing message; the failed turn is popped off history so the conversation state stays consistent.
+- LLM 1 (Setup, `prompts.get_setup_prompt`) runs once at interview start and generates a fixed set of six questions — 2 sampled from a local question bank, 4 freshly generated — each tagged with a category (`SetupResult`): Background, Technical Knowledge, Situational, Brain Teaser, or Analytical.
+- LLM 2 (Humanizer, `prompts.get_humanizer_prompt`) runs after each answer, scoring that single answer and phrasing the next predefined question — optionally as a natural follow-up on the candidate's previous response (`HumanizerTurn`, capped by `MAX_FOLLOW_UPS`).
+- The chat input disables itself (with a "Waiting for the interviewer's response..." placeholder) while a Humanizer call is in flight, via a two-phase submit that reruns once to render the disabled state before the blocking API call starts.
+- API failures (`AuthenticationError`, `RateLimitError`, timeout/connection errors, refusals, generic `OpenAIError`) are each caught and surfaced with a distinct, user-facing message that persists across the rerun that re-enables the input, so the turn stays retryable.
 
 **3. Structured-output feedback (`schemas.py`)**
 
-- `InterviewEvaluation` (a Pydantic model) defines a per-question `QuestionEvaluation` list plus overall strengths, areas for improvement, an overall score, and a final verdict.
+- `InterviewEvaluation` defines a per-question `QuestionEvaluation` list (score, critique, and 1-3 key takeaways) plus an overall score, four independently-scored supporting criteria — Communication, Depth & Substance, Problem-Solving, Role Fit — an `overall_summary`, top strengths, and areas for improvement.
 - Passed as `response_format` to `client.beta.chat.completions.parse`, which guarantees the response matches the schema — no regex-parsing markdown, no missing fields.
-- Structured outputs guarantee *shape*, not *range*: `overall_score` is guaranteed to be a float, not guaranteed to fall in `[0, 10]`, so `clamped_overall_score()` defensively clamps it before display.
+- Structured outputs guarantee *shape*, not *range*: scores are guaranteed to be floats, not guaranteed to fall in `[0, 10]`, so a shared `_clamp` helper defensively clamps all five before display (`clamped_overall_score()`, `criteria_scores()`).
 - The API can also return a `refusal` instead of a parsed result; this is checked explicitly rather than assumed away.
+- The feedback screen renders this as a circular overall-score ring plus a 2x2 grid of criterion bars, and a collapsible per-question accordion (topic, question, a mini score ring, the candidate's answer, and key takeaways).
 
 **4. Evaluation suite (`test_evals.py`, `eval_cache.py`)**
 
-- `test_interviewer_stays_on_topic` — runs a simulated 3-turn interview per fixed candidate profile, then uses a second LLM call (`QuestionJudgement`, also a structured output) to judge whether each generated question was topically relevant and level-appropriate.
+- `test_setup_questions_stay_on_topic` — runs a simulated 3-turn interview per fixed candidate profile, then uses a second LLM call (`QuestionJudgement`, also a structured output) to judge whether each generated question was topically relevant and level-appropriate.
 - `test_grader_score_consistency` — runs the grader against one fixed transcript 5 times and asserts the score spread stays within a tolerance, to catch cases where the evaluator's scoring drifts across identical inputs.
 - Every live API call in the suite is routed through `cached_call(name, payload, live_fn)`, which hashes the full call payload (model, prompt/messages, temperature, and any intentional per-run variation like `run_index`) and replays a recorded JSON result on cache hit — so the suite only costs money and varies non-deterministically on the *first* run, and is free and reproducible after that. `EVAL_CACHE_REFRESH=1` forces fresh recordings when prompts change.
 - Marked with a custom `model_eval` pytest marker and excluded from the default test run, since these tests call a paid, non-deterministic API.
@@ -55,9 +57,10 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 
 | Area | What it does |
 | --- | --- |
-| Interview generation | Role/level/company-tailored system prompt, streamed responses |
-| Feedback scoring | Structured-output (schema-guaranteed) per-question + overall evaluation |
-| Error handling | Distinct handling for auth, rate-limit, timeout, and generic API errors |
+| Interview generation | Role/level/company-tailored questions via a Setup + Humanizer LLM pipeline, with optional natural follow-ups |
+| Feedback scoring | Structured-output per-question score + key takeaways, plus an overall score and four supporting criteria (communication, depth, problem-solving, role fit) |
+| Feedback UI | Circular score rings, segmented criteria bars, and a collapsible per-question accordion |
+| Error handling | Distinct handling for auth, rate-limit, timeout, refusal, and generic API errors, with the chat input disabled/re-enabled around each LLM call |
 | Eval suite | LLM-as-judge topic/level checks + grader score-consistency variance test |
 | Cost control | Disk-based cache keyed on full call payload, with forced-refresh option |
 
@@ -75,39 +78,6 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 ├── .gitignore
 └── README.md
 ```
-
-## 🔭 Future Enhancements
-
-### Interview setup options
-Currently the app builds one tailored system prompt per session. Planned setup
-flow will let the user pick between three modes:
-1. **Select a company** — choose from a curated list of companies, each with
-   its own set of interview questions.
-2. **Custom company** — define a company and specific requirements, and have
-   the interview generated around that context.
-3. **No company in mind** — run a generic, role-based interview with no
-   company-specific framing.
-
-### HR interview question categories
-HR-track interviews will draw from five distinct question categories rather
-than a single undifferentiated pool:
-1. Background questions
-2. Technical knowledge questions
-3. Situational questions
-4. Brain teaser questions
-5. Analytical questions
-
-### Enhanced feedback screen
-The feedback screen will move beyond a single overall score to a fuller
-evaluation:
-- **Five scored metrics**: an overall score, plus four criteria — role-related
-  knowledge, problem-solving skills, communication skills, and workplace
-  culture fit — with the specific criteria weighting varying depending on
-  whether the interviewer was HR or technical.
-- **Text summary**, covering:
-  1. Overall performance
-  2. Areas for improvement
-  3. A detailed, question-by-question evaluation with key takeaways
 
 ## 👩‍💻 How to Run
 
