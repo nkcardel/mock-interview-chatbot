@@ -115,6 +115,16 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
    streamlit run app.py
    ```
 
+## ☁️ Deployment
+
+The live app is hosted on [Streamlit Community Cloud](https://streamlit.io/cloud) at **[mock-interview-chatbot.streamlit.app](https://mock-interview-chatbot.streamlit.app)**.
+
+- **Source:** deploys straight from this GitHub repo — Community Cloud auto-redeploys on every push to `main`, no build step or container involved.
+- **Runtime:** dependencies install from `requirements.txt`; no `Dockerfile` is needed since Community Cloud provisions the Python environment itself.
+- **Secrets:** `OPENAI_API_KEY` is set via the app's *Settings → Secrets* in the Community Cloud dashboard, not committed — `.streamlit/secrets.toml` stays local/gitignored (see `.streamlit/secrets.toml.example`).
+- **Theme:** `.streamlit/config.toml` (`[theme]`, custom fonts) is picked up automatically at deploy time.
+- **Chrome:** the default Streamlit menu/footer are hidden via CSS in `styles.py` (`#MainMenu`, `footer`) for a cleaner embedded-app look.
+
 ## 🧹 Linting, Formatting & Type Checking
 
 Lint checks and formatting are handled by [ruff](https://docs.astral.sh/ruff/); static type checking by [mypy](https://mypy-lang.org/):
