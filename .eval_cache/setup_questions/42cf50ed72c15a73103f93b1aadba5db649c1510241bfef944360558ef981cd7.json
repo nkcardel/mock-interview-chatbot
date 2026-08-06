@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {
+      "question_category": "Background",
+      "question_text": "Walk me through your career so far and what led you to apply for this role at Nestle as a Data Engineer."
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "What best practices do you follow to ensure your ETL pipelines are reliable and maintainable over time?"
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "Can you explain how you have used Airflow in your previous work and how it can benefit a data engineering team?"
+    },
+    {
+      "question_category": "Situational",
+      "question_text": "Imagine you notice a significant drop in performance in one of the ETL pipelines you designed. How would you approach diagnosing and resolving the issue?"
+    },
+    {
+      "question_category": "Analytical",
+      "question_text": "Describe a time when you used SQL to solve a complex data problem. What was the problem and how did SQL help you address it?"
+    },
+    {
+      "question_category": "Brain Teaser",
+      "question_text": "How would you design an ETL process for a company that needs to integrate data from multiple sources with varying data formats and update frequencies?"
+    }
+  ]
+}

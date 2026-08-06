@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {
+      "question_category": "Background",
+      "question_text": "Walk me through your career so far and what led you to apply for this role."
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "What best practices do you follow to ensure your data analysis work is reliable and maintainable over time, especially when using SQL and Tableau?"
+    },
+    {
+      "question_category": "Analytical",
+      "question_text": "How do you approach analyzing a large dataset to identify key insights? Could you walk us through a specific example where your analysis impacted decision-making?"
+    },
+    {
+      "question_category": "Situational",
+      "question_text": "Imagine you are given a dataset with missing values and anomalies. How would you handle cleaning and preparing this data for analysis?"
+    },
+    {
+      "question_category": "Brain Teaser",
+      "question_text": "If you have a dataset with millions of rows and you need to quickly find unique values in a particular column, what approach would you take and why?"
+    },
+    {
+      "question_category": "Technical Knowledge",
+      "question_text": "Can you explain the differences between using SQL for data manipulation and using Python with Pandas? In what situations might you prefer one over the other?"
+    }
+  ]
+}

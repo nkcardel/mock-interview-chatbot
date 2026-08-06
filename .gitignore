@@ -1,5 +1,4 @@
 .streamlit/secrets.toml
-.eval_cache/
 
 # Python
 __pycache__/
