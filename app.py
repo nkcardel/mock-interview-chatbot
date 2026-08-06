@@ -776,7 +776,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                     )
                 except openai.OpenAIError as e:
                     logger.exception("OpenAI API error during setup.")
-                    st.error(f"An API error occurred: {e.message}", icon="❌")
+                    st.error(f"An API error occurred: {e}", icon="❌")
     else:
         questions = st.session_state.setup_questions
         total_questions = len(questions)
@@ -979,7 +979,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 logger.exception("OpenAI API error during interview turn.")
                                 typing_placeholder.empty()
                                 st.session_state.interview_error = (
-                                    f"An API error occurred: {e.message}",
+                                    f"An API error occurred: {e}",
                                     "❌",
                                 )
                                 current_turn["answer"] = None
@@ -1073,9 +1073,7 @@ if st.session_state.feedback_shown:
                     )
                 except openai.OpenAIError as e:
                     logger.exception("OpenAI API error during evaluation.")
-                    st.error(
-                        f"Failed to generate feedback due to an API error: {e.message}", icon="❌"
-                    )
+                    st.error(f"Failed to generate feedback due to an API error: {e}", icon="❌")
 
     if "feedback_data" in st.session_state:
         evaluation = st.session_state.feedback_data

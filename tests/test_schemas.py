@@ -1,5 +1,7 @@
 """Unit tests for schemas.py: pure validation/clamping logic, no LLM calls."""
 
+from typing import Any
+
 import pytest
 
 from schemas import InterviewEvaluation, QuestionEvaluation, _clamp
@@ -21,8 +23,8 @@ def test_clamp_bounds_to_zero_ten(value, expected):
     assert _clamp(value) == expected
 
 
-def _make_evaluation(**overrides) -> InterviewEvaluation:
-    defaults = dict(
+def _make_evaluation(**overrides: Any) -> InterviewEvaluation:
+    defaults: dict[str, Any] = dict(
         questions=[
             QuestionEvaluation(
                 topic="Background",
