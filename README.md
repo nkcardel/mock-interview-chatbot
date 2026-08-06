@@ -134,6 +134,8 @@ pre-commit install
 
 ## ✅ Running the Unit Tests
 
+Also run automatically on every PR via [GitHub Actions](.github/workflows/ci.yml) (lint, mypy, unit tests, and the cached eval suite).
+
 Deterministic, no network, no API key required:
 
 ```
