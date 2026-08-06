@@ -15,7 +15,6 @@ guaranteed to land in [0, 10]. We still clamp defensively wherever a score
 is used — structured outputs remove a class of parsing bugs, not the need
 for basic input validation.
 """
-from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +31,7 @@ class SetupQuestion(BaseModel):
 
 
 class SetupResult(BaseModel):
-    questions: List[SetupQuestion] = Field(
+    questions: list[SetupQuestion] = Field(
         ..., description="Exactly six finished interview questions, in the order they'll be asked."
     )
 
@@ -48,7 +47,9 @@ class HumanizerTurn(BaseModel):
             "the predefined question paired with a short remark."
         ),
     )
-    message: str = Field(..., description="The finished message to show the candidate for this turn.")
+    message: str = Field(
+        ..., description="The finished message to show the candidate for this turn."
+    )
 
 
 def _clamp(value: float) -> float:
@@ -65,19 +66,23 @@ class QuestionEvaluation(BaseModel):
         ),
     )
     score: int = Field(..., description="Score for this single answer. Intended range: 1-10.")
-    critique: str = Field(..., description="1-2 sentences on strengths or missing details in this answer.")
-    key_takeaways: List[str] = Field(
-        ..., description="1-3 short bullet points capturing the key takeaway(s) from this specific answer."
+    critique: str = Field(
+        ..., description="1-2 sentences on strengths or missing details in this answer."
+    )
+    key_takeaways: list[str] = Field(
+        ...,
+        description="1-3 short bullet points capturing the key takeaway(s) from this specific answer.",
     )
 
 
 class InterviewEvaluation(BaseModel):
-    questions: List[QuestionEvaluation] = Field(
+    questions: list[QuestionEvaluation] = Field(
         ..., description="One entry per question-answer exchange in the transcript, in order."
     )
     overall_score: float = Field(..., description="Overall interview score. Intended range: 0-10.")
     communication_score: float = Field(
-        ..., description="How clear, articulate, and well-structured the candidate's communication was. Intended range: 0-10."
+        ...,
+        description="How clear, articulate, and well-structured the candidate's communication was. Intended range: 0-10.",
     )
     depth_score: float = Field(
         ...,
@@ -101,15 +106,18 @@ class InterviewEvaluation(BaseModel):
         ),
     )
     overall_summary: str = Field(
-        ..., description="3-4 sentences summarizing the candidate's overall performance across the interview."
+        ...,
+        description="3-4 sentences summarizing the candidate's overall performance across the interview.",
     )
-    top_strengths: List[str] = Field(..., description="2-3 bullets on what the candidate did well overall.")
-    areas_for_improvement: List[str] = Field(..., description="2-3 bullets on what to improve.")
+    top_strengths: list[str] = Field(
+        ..., description="2-3 bullets on what the candidate did well overall."
+    )
+    areas_for_improvement: list[str] = Field(..., description="2-3 bullets on what to improve.")
 
     def clamped_overall_score(self) -> float:
         return _clamp(self.overall_score)
 
-    def criteria_scores(self) -> List[tuple]:
+    def criteria_scores(self) -> list[tuple]:
         """(label, clamped score) pairs for the four supporting evaluation criteria."""
         return [
             ("Communication", _clamp(self.communication_score)),

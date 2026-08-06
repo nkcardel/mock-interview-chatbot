@@ -63,9 +63,12 @@ def get_setup_prompt(
     if job_requirements:
         role_lines.append(f"- Job Requirements: {job_requirements}")
 
-    category_lines = "\n".join(f"- {title}: {description}" for title, description in QUESTION_CATEGORIES)
+    category_lines = "\n".join(
+        f"- {title}: {description}" for title, description in QUESTION_CATEGORIES
+    )
     db_question_lines = "\n".join(
-        f'{i}. (bank category: {q["category"]}) "{q["text"]}"' for i, q in enumerate(db_questions, start=1)
+        f'{i}. (bank category: {q["category"]}) "{q["text"]}"'
+        for i, q in enumerate(db_questions, start=1)
     )
 
     return (
@@ -121,22 +124,22 @@ def get_humanizer_prompt(
         "You are the 'Humanizer' stage of a mock interview pipeline. Your job is to turn the next "
         "predefined interview question into a natural-sounding conversational turn, based on how the "
         "candidate answered the previous question.\n\n"
-        f"PREVIOUS QUESTION\n\"{previous_question}\"\n\n"
-        f"CANDIDATE'S RESPONSE TO IT\n\"{previous_response}\"\n\n"
-        f"NEXT PREDEFINED QUESTION (category: {current_category})\n\"{current_question}\"\n\n"
+        f'PREVIOUS QUESTION\n"{previous_question}"\n\n'
+        f'CANDIDATE\'S RESPONSE TO IT\n"{previous_response}"\n\n'
+        f'NEXT PREDEFINED QUESTION (category: {current_category})\n"{current_question}"\n\n'
         "YOUR TASK\n"
         "1. Score the candidate's response to the previous question from 1 to 10.\n"
         f"2. {follow_up_rule}\n"
         "   - If producing a follow-up: rephrase the next predefined question so it reads as a "
         "natural follow-up that builds on what the candidate just said, digging deeper into that "
-        "same thread, rather than moving on. Example style: \"Based on your previous experience "
+        'same thread, rather than moving on. Example style: "Based on your previous experience '
         "working with machine learning models, can you describe a time when you improved the "
-        "accuracy of a predictive model?\"\n"
+        'accuracy of a predictive model?"\n'
         "   - If not producing a follow-up: write a short (one sentence) remark reacting to the "
         "candidate's previous response, then present the predefined question close to verbatim. "
         "Example style: \"It's impressive that you have experience deploying machine learning "
         "models to production, can you explain the steps you took to ensure the reliability of your "
-        "models in a live environment?\"\n"
+        'models in a live environment?"\n'
         "3. Set is_follow_up to match which branch you took.\n"
         "4. Put the finished, ready-to-display text in `message` — nothing else should be shown to "
         "the candidate outside of it."

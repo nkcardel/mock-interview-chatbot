@@ -86,7 +86,8 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 │   ├── test_question_bank.py  # Unit tests for question sampling (question_bank.py)
 │   └── test_app_setup_flow.py # AppTest-driven tests for the setup-step state machine (app.py)
 ├── requirements.txt       # Python dependencies
-├── pyproject.toml         # Project metadata, pytest marker config
+├── pyproject.toml         # Project metadata, pytest marker config, ruff config
+├── .pre-commit-config.yaml # Pre-commit hooks (ruff lint + format)
 ├── .gitignore
 └── README.md
 ```
@@ -108,6 +109,22 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
    ```
    streamlit run app.py
    ```
+
+## 🧹 Linting & Formatting
+
+Lint checks and formatting are handled by [ruff](https://docs.astral.sh/ruff/):
+
+```
+pip install -e ".[dev]"
+ruff check .      # lint
+ruff format .     # format
+```
+
+Optionally, install the pre-commit hook so both run automatically before each commit:
+
+```
+pre-commit install
+```
 
 ## ✅ Running the Unit Tests
 

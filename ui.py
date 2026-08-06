@@ -15,6 +15,7 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 def _svg_data_uri(path: Path) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
+
 REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
 BRIEFCASE_ICON_URI = _svg_data_uri(ICON_DIR / "briefcase.svg")
 EXPERIENCE_ICON_URI = _svg_data_uri(ICON_DIR / "experience.svg")
@@ -787,14 +788,14 @@ def render_company_logo_styles(company_logo_files: dict):
         data_uri = f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
         rules.append(
             f'.st-key-company_btn_{company} button[kind="secondaryFormSubmit"] {{'
-            f'color: transparent !important;'
+            f"color: transparent !important;"
             f'background-image: url("{data_uri}");'
-            f'background-repeat: no-repeat;'
-            f'background-position: center;'
-            f'background-size: contain;'
-            f'background-origin: content-box;'
-            f'height: 90px !important;'
-            f'padding: 10px 12px !important;'
+            f"background-repeat: no-repeat;"
+            f"background-position: center;"
+            f"background-size: contain;"
+            f"background-origin: content-box;"
+            f"height: 90px !important;"
+            f"padding: 10px 12px !important;"
             f"}}"
         )
     if rules:
@@ -806,7 +807,7 @@ def render_header():
     st.markdown('<div class="hero-title">Mock Job Interview Chatbot</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="hero-subtitle">Practice a realistic role-specific interview and get structured, '
-        'question-by-question feedback.</div>',
+        "question-by-question feedback.</div>",
         unsafe_allow_html=True,
     )
 
@@ -849,10 +850,10 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
             # should still look outlined/"current" rather than filled/"done" —
             # override the general clickable-button style for just this one key.
             st.markdown(
-                f'<style>.st-key-step_nav_{current} div.stButton > button {{'
-                f'background: #fff !important;'
-                f'color: #0054A3 !important;'
-                f'border: 2px solid #0054A3 !important;'
+                f"<style>.st-key-step_nav_{current} div.stButton > button {{"
+                f"background: #fff !important;"
+                f"color: #0054A3 !important;"
+                f"border: 2px solid #0054A3 !important;"
                 f"}}</style>",
                 unsafe_allow_html=True,
             )
@@ -878,9 +879,13 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
                         use_container_width=True,
                     )
                 else:
-                    st.markdown(f'<div class="stepper-node {state}">{node_content}</div>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div class="stepper-node {state}">{node_content}</div>',
+                        unsafe_allow_html=True,
+                    )
                 st.markdown(
-                    f'<div class="stepper-label {state}">{STEP_LABELS[step_num]}</div>', unsafe_allow_html=True
+                    f'<div class="stepper-label {state}">{STEP_LABELS[step_num]}</div>',
+                    unsafe_allow_html=True,
                 )
 
 
@@ -892,8 +897,8 @@ def _render_insight_card(icon: str, title: str, body_html: str):
     st.markdown(
         f'<div class="insight-card">'
         f'<div class="insight-card-title"><span>{icon}</span><span>{html.escape(title)}</span></div>'
-        f'{body_html}'
-        f'</div>',
+        f"{body_html}"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -904,20 +909,31 @@ def render_evaluation(evaluation, turns):
     the candidate's verbatim answer for each entry.
     """
     _render_insight_card(
-        _icon_img(BAR_CHART_ICON_URI), "Overall Performance", f"<p>{html.escape(evaluation.overall_summary)}</p>"
+        _icon_img(BAR_CHART_ICON_URI),
+        "Overall Performance",
+        f"<p>{html.escape(evaluation.overall_summary)}</p>",
     )
 
-    strengths_html = "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.top_strengths) + "</ul>"
+    strengths_html = (
+        "<ul>"
+        + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.top_strengths)
+        + "</ul>"
+    )
     _render_insight_card(_icon_img(STRENGTHS_ICON_URI), "Top Strengths", strengths_html)
 
     improvements_html = (
-        "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.areas_for_improvement) + "</ul>"
+        "<ul>"
+        + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.areas_for_improvement)
+        + "</ul>"
     )
-    _render_insight_card(_icon_img(IMPROVEMENT_ICON_URI), "Areas for Improvement", improvements_html)
+    _render_insight_card(
+        _icon_img(IMPROVEMENT_ICON_URI), "Areas for Improvement", improvements_html
+    )
 
     with st.container(key="response_eval_title"):
         st.markdown(
-            f'<h4>{_icon_img(EVALUATION_ICON_URI, size="1.2em")} Response Evaluation</h4>', unsafe_allow_html=True
+            f"<h4>{_icon_img(EVALUATION_ICON_URI, size='1.2em')} Response Evaluation</h4>",
+            unsafe_allow_html=True,
         )
     render_response_evaluation(evaluation, turns)
 
@@ -998,8 +1014,8 @@ def _render_ring_html(
         f'<div class="score-ring-cap" style="{cap_style(pct)}"></div>'
         f'<div class="score-ring-inner" style="width:{inner_size}px; height:{inner_size}px; background:{inner_bg};">'
         f'<span class="score-ring-value" style="color:{color}; font-size:{font_size};">{value_text}</span>'
-        f'</div>'
-        f'</div>'
+        f"</div>"
+        f"</div>"
     )
 
 
@@ -1014,11 +1030,11 @@ def _criterion_box_html(label: str, value: float) -> str:
         f'<div class="score-criterion-helper">{helper_text}</div>'
         f'<div class="score-tier-track">'
         f'<div class="score-tier-fill" style="width:{pct}%; background:{color};"></div>'
-        f'</div>'
+        f"</div>"
         f'<div class="score-tier-label" style="color:{color};">'
-        f'<span>{TIER_LABELS[tier]}</span><span>{value:.1f}/10</span>'
-        f'</div>'
-        f'</div>'
+        f"<span>{TIER_LABELS[tier]}</span><span>{value:.1f}/10</span>"
+        f"</div>"
+        f"</div>"
     )
 
 
@@ -1032,18 +1048,20 @@ def render_score_overview(evaluation):
     overall_verdict = TIER_VERDICTS[_tier_index(overall)]
     scores_by_label = dict(evaluation.criteria_scores())
 
-    boxes_html = "".join(_criterion_box_html(label, scores_by_label[label]) for label in SCORE_GRID_ORDER)
+    boxes_html = "".join(
+        _criterion_box_html(label, scores_by_label[label]) for label in SCORE_GRID_ORDER
+    )
     ring_html = _render_ring_html(overall, overall_color)
 
     st.markdown(
         f'<div class="card score-overview-card">'
         f'<div class="score-ring-box">'
-        f'{ring_html}'
+        f"{ring_html}"
         f'<div class="score-caption">Overall Score</div>'
         f'<div class="score-verdict">{overall_verdict}</div>'
-        f'</div>'
+        f"</div>"
         f'<div class="score-overview-bars">{boxes_html}</div>'
-        f'</div>',
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -1075,16 +1093,16 @@ def render_response_evaluation(evaluation, turns):
             f'<div class="response-eval-header-text">'
             f'<span class="response-eval-topic-pill">{html.escape(q.topic)}</span>'
             f'<span class="response-eval-question">{html.escape(turn["displayed_question"])}</span>'
-            f'</div>'
-            f'{ring_html}'
-            f'</summary>'
+            f"</div>"
+            f"{ring_html}"
+            f"</summary>"
             f'<div class="response-eval-accordion-body">'
             f'<div class="response-eval-section-label"><span>{_icon_img(CHAT_ICON_URI)}</span><span>Your Answer</span></div>'
             f'<div class="response-eval-answer-box">{html.escape(turn["answer"] or "")}</div>'
             f'<div class="response-eval-section-label"><span>{_icon_img(KEY_ICON_URI)}</span><span>Key Takeaways</span></div>'
             f'<ul class="response-eval-takeaways-list">{takeaways_html}</ul>'
-            f'</div>'
-            f'</details>'
+            f"</div>"
+            f"</details>"
         )
 
     st.markdown(

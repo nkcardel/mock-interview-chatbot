@@ -6,6 +6,7 @@ Run explicitly:
 
 Requires OPENAI_API_KEY in the environment.
 """
+
 import os
 import statistics
 
@@ -33,6 +34,7 @@ def _get_client() -> OpenAI:
     if _client is None:
         _client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     return _client
+
 
 # ---------------------------------------------------------------------------
 # Fixed candidate profiles — this is the "eval dataset."
@@ -67,15 +69,21 @@ CANDIDATE_PROFILES = [
 
 class QuestionJudgement(BaseModel):
     on_topic: bool = Field(
-        ..., description="Does the question relate to the candidate's stated profile and target role?"
+        ...,
+        description="Does the question relate to the candidate's stated profile and target role?",
     )
     appropriate_for_level: bool = Field(
-        ..., description="Is the question appropriately scoped for the candidate's stated seniority level?"
+        ...,
+        description="Is the question appropriately scoped for the candidate's stated seniority level?",
     )
     reasoning: str = Field(..., description="One sentence justifying the two judgements above.")
 
+
 FIXED_DB_QUESTIONS = [
-    {"category": "Background", "text": "Walk me through your career so far and what led you to apply for this role."},
+    {
+        "category": "Background",
+        "text": "Walk me through your career so far and what led you to apply for this role.",
+    },
     {
         "category": "Technical Knowledge",
         "text": "What best practices do you follow to make sure your work is reliable and maintainable over time?",
@@ -85,10 +93,23 @@ FIXED_DB_QUESTIONS = [
 
 def generate_setup_questions(profile: dict, db_questions: list) -> list:
     system_prompt = prompts.get_setup_prompt(
-        profile["name"], profile["experience"], profile["skills"], profile["level"], profile["position"],
-        profile.get("company", ""), "", "", "", db_questions,
+        profile["name"],
+        profile["experience"],
+        profile["skills"],
+        profile["level"],
+        profile["position"],
+        profile.get("company", ""),
+        "",
+        "",
+        "",
+        db_questions,
     )
-    payload = {"model": prompts.MODEL_NAME, "system_prompt": system_prompt, "temperature": 0.7, "schema": "SetupResult"}
+    payload = {
+        "model": prompts.MODEL_NAME,
+        "system_prompt": system_prompt,
+        "temperature": 0.7,
+        "schema": "SetupResult",
+    }
 
     def _live():
         completion = _get_client().beta.chat.completions.parse(
@@ -114,7 +135,12 @@ def judge_question(question: str, profile: dict) -> QuestionJudgement:
         f"Skills: {profile['skills']}\n\n"
         f"Interviewer question: {question}"
     )
-    payload = {"model": prompts.MODEL_NAME, "prompt": judge_prompt, "temperature": 0, "schema": "QuestionJudgement"}
+    payload = {
+        "model": prompts.MODEL_NAME,
+        "prompt": judge_prompt,
+        "temperature": 0,
+        "schema": "QuestionJudgement",
+    }
 
     def _live():
         completion = _get_client().beta.chat.completions.parse(
@@ -174,7 +200,10 @@ def test_grader_score_consistency():
                 model=prompts.MODEL_NAME,
                 messages=[
                     {"role": "system", "content": prompts.EVALUATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompts.get_evaluation_user_prompt(FIXED_TRANSCRIPT)},
+                    {
+                        "role": "user",
+                        "content": prompts.get_evaluation_user_prompt(FIXED_TRANSCRIPT),
+                    },
                 ],
                 temperature=0.2,
                 response_format=InterviewEvaluation,
