@@ -13,6 +13,7 @@ Beyond the app itself, the project includes a separate **evaluation suite** that
 This project began from a course exercise (a basic Streamlit mock-interview chatbot) and has been substantially extended since. What's original to this repo:
 
 - **Eval suite** (`tests/test_evals.py`, `eval_cache.py`) — LLM-as-judge tests that check whether interview questions stay on-topic and appropriately scoped for the candidate's seniority level, plus a grader-consistency test that measures scoring variance across repeated runs on an identical transcript.
+- **Unit test suite** (`tests/test_schemas.py`, `tests/test_question_bank.py`, `tests/test_app_setup_flow.py`) — deterministic, no-network tests for score clamping, question sampling, and the setup-step state machine (steps 1-3 of `app.py`), the latter driven with Streamlit's `AppTest` harness against the real widget callbacks.
 - **Disk-based response caching** — API calls in the eval suite are cached by a hash of their full payload (model, prompt, temperature, run index), so the suite replays for free and deterministically after the first live run, with an `EVAL_CACHE_REFRESH` env var to force fresh recordings.
 - **Structured outputs** (`schemas.py`) — feedback generation uses `response_format` with a Pydantic schema instead of parsing markdown, with defensive score clamping since schema conformance doesn't guarantee the value lands in the intended numeric range.
 - **Granular error handling** — auth, rate-limit, timeout, and other API errors are caught and surfaced separately in the UI rather than one blanket exception handler.
@@ -22,7 +23,7 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 - **LLM:** `openai` (Chat Completions API, structured outputs via `.beta.chat.completions.parse`)
 - **UI:** `streamlit`
 - **Schema / validation:** `pydantic`
-- **Testing:** `pytest` (custom `model_eval` marker for API-calling tests)
+- **Testing:** `pytest`, Streamlit's `AppTest` harness for widget-driven state-machine tests (custom `model_eval` marker for API-calling tests)
 
 ## 🚀 Key Implementation Steps
 
@@ -53,6 +54,13 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 - Every live API call in the suite is routed through `cached_call(name, payload, live_fn)`, which hashes the full call payload (model, prompt/messages, temperature, and any intentional per-run variation like `run_index`) and replays a recorded JSON result on cache hit — so the suite only costs money and varies non-deterministically on the *first* run, and is free and reproducible after that. `EVAL_CACHE_REFRESH=1` forces fresh recordings when prompts change.
 - Marked with a custom `model_eval` pytest marker and excluded from the default test run, since these tests call a paid, non-deterministic API.
 
+**5. Unit tests (`tests/test_schemas.py`, `tests/test_question_bank.py`, `tests/test_app_setup_flow.py`)**
+
+- `test_schemas.py` — covers `_clamp()`'s boundary behavior and `InterviewEvaluation.clamped_overall_score()` / `criteria_scores()`.
+- `test_question_bank.py` — covers `sample_questions()`'s count, no-replacement sampling, and over-request behavior against the local question bank.
+- `test_app_setup_flow.py` — drives the setup-step state machine (personal info → company → position, validation errors, back-navigation via the stepper, and reset) through Streamlit's `AppTest` harness, which runs `app.py`'s real widgets and `on_click` callbacks without a live server or network call.
+- These run under the default `pytest` invocation (no marker, no API key needed) — see [Running the unit tests](#-running-the-unit-tests).
+
 ## 📊 Feature Summary
 
 | Area | What it does |
@@ -73,7 +81,10 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
 ├── schemas.py             # Pydantic schemas for structured-output evaluation
 ├── eval_cache.py          # Disk-based cache for eval-suite API calls
 ├── tests/
-│   └── test_evals.py      # LLM-as-judge + grader-consistency eval suite (pytest, model_eval marker)
+│   ├── test_evals.py          # LLM-as-judge + grader-consistency eval suite (pytest, model_eval marker)
+│   ├── test_schemas.py        # Unit tests for score clamping (schemas.py)
+│   ├── test_question_bank.py  # Unit tests for question sampling (question_bank.py)
+│   └── test_app_setup_flow.py # AppTest-driven tests for the setup-step state machine (app.py)
 ├── requirements.txt       # Python dependencies
 ├── pyproject.toml         # Project metadata, pytest marker config
 ├── .gitignore
@@ -97,6 +108,14 @@ This project began from a course exercise (a basic Streamlit mock-interview chat
    ```
    streamlit run app.py
    ```
+
+## ✅ Running the Unit Tests
+
+Deterministic, no network, no API key required:
+
+```
+pytest
+```
 
 ## 🧪 Running the Eval Suite
 
