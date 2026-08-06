@@ -36,6 +36,20 @@ apply_custom_styles()
 render_header()
 
 
+def render_usage_sidebar():
+    """Running total of LLM token usage/cost for this session, for cost visibility."""
+    totals = st.session_state.usage_totals
+    if totals["total_tokens"] == 0:
+        return
+    with st.sidebar:
+        st.caption("Session LLM usage")
+        st.metric("Estimated cost", f"${totals['cost']:.4f}")
+        st.caption(
+            f"{totals['total_tokens']:,} tokens "
+            f"({totals['prompt_tokens']:,} in / {totals['completion_tokens']:,} out) · {prompts.MODEL_NAME}"
+        )
+
+
 CLOSING_MESSAGE = (
     "Thank you for your time today — that concludes the interview! Nice work getting through "
     "all the questions."
@@ -66,6 +80,29 @@ def parse_with_retry(client, **kwargs):
     return client.beta.chat.completions.parse(**kwargs)
 
 
+def track_usage(completion):
+    """Accumulate this call's token usage/cost into the session total and log it."""
+    usage = completion.usage
+    if usage is None:
+        return
+
+    call_cost = (
+        usage.prompt_tokens / 1_000_000 * prompts.PRICE_PER_1M_INPUT_TOKENS
+        + usage.completion_tokens / 1_000_000 * prompts.PRICE_PER_1M_OUTPUT_TOKENS
+    )
+
+    totals = st.session_state.usage_totals
+    totals["prompt_tokens"] += usage.prompt_tokens
+    totals["completion_tokens"] += usage.completion_tokens
+    totals["total_tokens"] += usage.total_tokens
+    totals["cost"] += call_cost
+
+    print(
+        f"[usage] {prompts.MODEL_NAME}: +{usage.total_tokens} tokens (${call_cost:.4f}) — "
+        f"session total: {totals['total_tokens']} tokens (${totals['cost']:.4f})"
+    )
+
+
 # ---------------------------
 # Session State Initialization
 # ---------------------------
@@ -93,6 +130,15 @@ if "setup_error" not in st.session_state:
     st.session_state.setup_error = None
 if "invalid_fields" not in st.session_state:
     st.session_state.invalid_fields = set()
+if "usage_totals" not in st.session_state:
+    st.session_state.usage_totals = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cost": 0.0,
+    }
+
+render_usage_sidebar()
 
 # Store finalized values safely outside form widget lifecycle
 if "user_data" not in st.session_state:
@@ -315,6 +361,12 @@ def reset_interview():
     }
     st.session_state.setup_error = None
     st.session_state.invalid_fields = set()
+    st.session_state.usage_totals = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "cost": 0.0,
+    }
 
     # Remove cached feedback and interview setup if they exist
     if "feedback_data" in st.session_state:
@@ -644,6 +696,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                         temperature=0.7,
                         response_format=SetupResult,
                     )
+                    track_usage(completion)
                     message = completion.choices[0].message
 
                     if message.refusal:
@@ -774,6 +827,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                     temperature=0.7,
                                     response_format=HumanizerTurn,
                                 )
+                                track_usage(completion)
                                 remaining = MIN_SPINNER_SECONDS - (time.monotonic() - spinner_start)
                                 if remaining > 0:
                                     time.sleep(remaining)
@@ -893,6 +947,7 @@ if st.session_state.feedback_shown:
                         top_p=0.9,
                         response_format=InterviewEvaluation,
                     )
+                    track_usage(feedback_completion)
                     message = feedback_completion.choices[0].message
 
                     # Structured outputs adds a failure mode .create() didn't have:

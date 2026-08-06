@@ -1,5 +1,10 @@
 MODEL_NAME = "gpt-4o"
 
+# USD per 1M tokens for MODEL_NAME. Update alongside MODEL_NAME if it changes.
+# Source: https://openai.com/api/pricing/
+PRICE_PER_1M_INPUT_TOKENS = 2.50
+PRICE_PER_1M_OUTPUT_TOKENS = 10.00
+
 QUESTION_CATEGORIES = (
     (
         "Background",
