@@ -10,13 +10,14 @@ from schemas import HumanizerTurn, InterviewEvaluation, SetupResult
 from ui import (
     BRIEFCASE_ICON_URI,
     EXPERIENCE_ICON_URI,
+    FEEDBACK_ICON_URI,
     SKILLS_ICON_URI,
     apply_custom_styles,
     render_company_logo_styles,
     render_evaluation,
     render_header,
     render_invalid_field_borders,
-    render_score_badge,
+    render_score_overview,
     render_step_indicator,
     scroll_chat_to_bottom,
 )
@@ -71,6 +72,10 @@ if "feedback_shown" not in st.session_state:
     st.session_state.feedback_shown = False
 if "chat_complete" not in st.session_state:
     st.session_state.chat_complete = False
+if "awaiting_llm" not in st.session_state:
+    st.session_state.awaiting_llm = False
+if "interview_error" not in st.session_state:
+    st.session_state.interview_error = None
 if "setup_error" not in st.session_state:
     st.session_state.setup_error = None
 if "invalid_fields" not in st.session_state:
@@ -278,6 +283,8 @@ def reset_interview():
     st.session_state.setup_step = 1
     st.session_state.company_option = "select"
     st.session_state.chat_complete = False
+    st.session_state.awaiting_llm = False
+    st.session_state.interview_error = None
     st.session_state.feedback_shown = False
     st.session_state.turns = []
     st.session_state.follow_up_count = 0
@@ -566,7 +573,7 @@ if not st.session_state.setup_complete:
                 total_questions = prompts.DB_QUESTION_COUNT + prompts.GENERATED_QUESTION_COUNT
                 st.caption(f"You'll be asked {total_questions} questions tailored to this role. Takes about 5 minutes.")
 
-                _, next_col = st.columns([5, 1.5])
+                _, next_col = st.columns([4, 2])
                 with next_col:
                     st.form_submit_button(
                         "Start Interview", type="primary", on_click=complete_setup, use_container_width=True
@@ -658,31 +665,59 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                 }
             ]
 
-        # Render conversation so far
-        for turn in st.session_state.turns:
-            with st.chat_message("assistant"):
-                st.markdown(turn["displayed_question"])
-            if turn["answer"] is not None:
-                with st.chat_message("user"):
-                    st.markdown(turn["answer"])
 
-        if "closing_message" in st.session_state:
-            with st.chat_message("assistant"):
-                st.markdown(st.session_state.closing_message)
+        with st.container(key="feedback_loading_chat"):
+            # Render conversation so far
+            for turn in st.session_state.turns:
+                with st.chat_message("assistant"):
+                    st.markdown(turn["displayed_question"])
+                if turn["answer"] is not None:
+                    with st.chat_message("user"):
+                        st.markdown(turn["answer"])
 
-        scroll_chat_to_bottom()
+            if "closing_message" in st.session_state:
+                with st.chat_message("assistant"):
+                    st.markdown(st.session_state.closing_message)
+
+            scroll_chat_to_bottom()
+
+            if st.session_state.chat_complete:
+                st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
+                st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
+
+                scroll_chat_to_bottom()
 
         if not st.session_state.chat_complete:
             current_index = len(st.session_state.turns) - 1
             current_turn = st.session_state.turns[current_index]
             st.caption(f"Question {current_index + 1} of {total_questions} — {current_turn['category']}")
 
-            if prompt := st.chat_input("Your answer.", max_chars=1000):
+            if st.session_state.interview_error:
+                error_message, error_icon = st.session_state.interview_error
+                st.error(error_message, icon=error_icon)
+                st.session_state.interview_error = None
+
+            # Two-phase submit: capture the answer and rerun once so the browser
+            # actually renders the input as disabled before the blocking LLM
+            # call starts, rather than disabling and calling the API in the same
+            # pass (which would send the disabled state and the response together).
+            chat_input_placeholder = (
+                "Waiting for the interviewer's response..." if st.session_state.awaiting_llm else "Your answer."
+            )
+            prompt = st.chat_input(
+                chat_input_placeholder, max_chars=1000, disabled=st.session_state.awaiting_llm
+            )
+            if prompt and not st.session_state.awaiting_llm:
+                current_turn["answer"] = prompt
+                st.session_state.awaiting_llm = True
+                st.rerun()
+
+            if st.session_state.awaiting_llm:
                 client = get_openai_client()
-                if client:
-                    current_turn["answer"] = prompt
-                    with st.chat_message("user", avatar="🙋"):
-                        st.markdown(prompt)
+                if not client:
+                    st.session_state.awaiting_llm = False
+                else:
+                    prompt = current_turn["answer"]
                     scroll_chat_to_bottom()
 
                     next_index = current_index + 1
@@ -690,6 +725,7 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                         # All predefined questions answered — static farewell, no LLM call.
                         st.session_state.closing_message = CLOSING_MESSAGE
                         st.session_state.chat_complete = True
+                        st.session_state.awaiting_llm = False
                         st.rerun()
                     else:
                         # LLM 2 (Humanizer): scores the just-given answer and phrases the
@@ -730,8 +766,13 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                 message = completion.choices[0].message
 
                                 if message.refusal:
-                                    st.error(f"The interviewer declined to continue: {message.refusal}", icon="⚠️")
+                                    st.session_state.interview_error = (
+                                        f"The interviewer declined to continue: {message.refusal}",
+                                        "⚠️",
+                                    )
                                     current_turn["answer"] = None
+                                    st.session_state.awaiting_llm = False
+                                    st.rerun()
                                 else:
                                     humanized = message.parsed
                                     # Defensive clamp: the budget/consecutive-turn rule is
@@ -750,42 +791,66 @@ if st.session_state.setup_complete and not st.session_state.feedback_shown:
                                     )
                                     st.session_state.follow_up_count += 1 if is_follow_up else 0
                                     st.session_state.last_turn_was_follow_up = is_follow_up
+                                    st.session_state.awaiting_llm = False
                                     st.rerun()
                             except openai.AuthenticationError:
                                 typing_placeholder.empty()
-                                st.error("Authentication failed. Check your OpenAI API key.", icon="🚨")
-                                current_turn["answer"] = None
-                            except openai.RateLimitError:
-                                typing_placeholder.empty()
-                                st.error("Rate limit exceeded or insufficient quota. Please try again later.", icon="⏳")
-                                current_turn["answer"] = None
-                            except (openai.APITimeoutError, openai.APIConnectionError):
-                                typing_placeholder.empty()
-                                st.error("Network timeout or connectivity issue. Please retry.", icon="📡")
-                                current_turn["answer"] = None
-                            except openai.LengthFinishReasonError:
-                                typing_placeholder.empty()
-                                st.error(
-                                    "The interviewer's response was cut off before it completed. Please try again.",
-                                    icon="✂️",
+                                st.session_state.interview_error = (
+                                    "Authentication failed. Check your OpenAI API key.",
+                                    "🚨",
                                 )
                                 current_turn["answer"] = None
+                                st.session_state.awaiting_llm = False
+                                st.rerun()
+                            except openai.RateLimitError:
+                                typing_placeholder.empty()
+                                st.session_state.interview_error = (
+                                    "Rate limit exceeded or insufficient quota. Please try again later.",
+                                    "⏳",
+                                )
+                                current_turn["answer"] = None
+                                st.session_state.awaiting_llm = False
+                                st.rerun()
+                            except (openai.APITimeoutError, openai.APIConnectionError):
+                                typing_placeholder.empty()
+                                st.session_state.interview_error = (
+                                    "Network timeout or connectivity issue. Please retry.",
+                                    "📡",
+                                )
+                                current_turn["answer"] = None
+                                st.session_state.awaiting_llm = False
+                                st.rerun()
+                            except openai.LengthFinishReasonError:
+                                typing_placeholder.empty()
+                                st.session_state.interview_error = (
+                                    "The interviewer's response was cut off before it completed. "
+                                    "Please try again.",
+                                    "✂️",
+                                )
+                                current_turn["answer"] = None
+                                st.session_state.awaiting_llm = False
+                                st.rerun()
                             except openai.OpenAIError as e:
                                 typing_placeholder.empty()
-                                st.error(f"An API error occurred: {e.message}", icon="❌")
+                                st.session_state.interview_error = (f"An API error occurred: {e.message}", "❌")
                                 current_turn["answer"] = None
-        else:
-            st.success("Interview complete — nice work! Ready to see how you did?", icon="✅")
-            st.button("Get Feedback", type="primary", on_click=show_feedback, key="btn_feedback")
-
-            scroll_chat_to_bottom()
+                                st.session_state.awaiting_llm = False
+                                st.rerun()
 
 # ---------------------------
 # Step 5: Feedback Phase
 # ---------------------------
 if st.session_state.feedback_shown:
-    st.subheader("📋 Feedback")
-    with st.container(key="step_caption"):
+    st.markdown(
+        "<style>.st-key-feedback_loading_chat { display: none !important; }</style>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<h3><img src="{FEEDBACK_ICON_URI}" style="height:1em; vertical-align:-0.15em; margin-right:4px;"/> '
+        f'Feedback</h3>',
+        unsafe_allow_html=True,
+    )
+    with st.container(key="feedback_step_caption"):
         st.caption(
             "Here's how you did: a score and critique for each answer, plus your overall "
             "strengths and areas to improve."
@@ -840,8 +905,7 @@ if st.session_state.feedback_shown:
     if "feedback_data" in st.session_state:
         evaluation = st.session_state.feedback_data
 
-        render_score_badge(evaluation.clamped_overall_score())
-        render_evaluation(evaluation)
+        render_score_overview(evaluation)
+        render_evaluation(evaluation, st.session_state.turns)
 
-        st.markdown("---")
         st.button("Restart Interview", type="primary", on_click=reset_interview, key="btn_restart")

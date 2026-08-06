@@ -1,6 +1,7 @@
 import base64
 import html
 import json
+import math
 import time
 from pathlib import Path
 
@@ -14,12 +15,17 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 def _svg_data_uri(path: Path) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
-
 REQUIRED_FIELD_ICON_URI = _svg_data_uri(ICON_DIR / "warning.svg")
 BRIEFCASE_ICON_URI = _svg_data_uri(ICON_DIR / "briefcase.svg")
 EXPERIENCE_ICON_URI = _svg_data_uri(ICON_DIR / "experience.svg")
 SKILLS_ICON_URI = _svg_data_uri(ICON_DIR / "skills.svg")
-
+BAR_CHART_ICON_URI = _svg_data_uri(ICON_DIR / "bar-chart.svg")
+STRENGTHS_ICON_URI = _svg_data_uri(ICON_DIR / "strengths.svg")
+IMPROVEMENT_ICON_URI = _svg_data_uri(ICON_DIR / "improvement.svg")
+EVALUATION_ICON_URI = _svg_data_uri(ICON_DIR / "evaluation.svg")
+CHAT_ICON_URI = _svg_data_uri(ICON_DIR / "chat.svg")
+KEY_ICON_URI = _svg_data_uri(ICON_DIR / "key.svg")
+FEEDBACK_ICON_URI = _svg_data_uri(ICON_DIR / "feedback.svg")
 CUSTOM_CSS = """
 <style>
     /* ---- Hide default Streamlit menu and footer ---- */
@@ -58,7 +64,7 @@ CUSTOM_CSS = """
         border: 1px solid rgba(148, 163, 184, 0.18);
         border-radius: 14px;
         padding: 1.4rem 1.5rem;
-        margin-bottom: 1.2rem;
+        margin: 1.2rem 0;
     }
 
     /* ---- Setup form container ---- */
@@ -99,6 +105,10 @@ CUSTOM_CSS = """
     }
     .st-key-step_caption {
         margin-top: -10px !important;
+        margin-bottom: 0 !important;
+    }
+    .st-key-feedback_step_caption {
+        margin-top: 6px !important;
         margin-bottom: 0 !important;
     }
 
@@ -222,6 +232,13 @@ CUSTOM_CSS = """
         font-weight: 600 !important;
         padding: 0.5rem 1.4rem !important;
         border: none !important;
+        white-space: nowrap !important;
+    }
+
+    /* ---- Restart Interview button: extra breathing room above it, since
+       it sits directly under the response evaluation accordion. ---- */
+    .st-key-btn_restart {
+        margin-top: 2rem;
     }
 
     /* ---- Secondary form submit buttons ---- */
@@ -260,25 +277,264 @@ CUSTOM_CSS = """
         border-color: #0054A3 !important;
     }
 
-    /* ---- Score badge ---- */
-    .score-badge {
-        display: inline-flex;
+    /* ---- Score ring: a circular progress ring (conic-gradient) with the
+       numeric score in a plain circle cut out of its center. The two
+       .score-ring-cap dots are absolutely positioned (in Python, via
+       trig on the score percentage) at the start and end of the arc to
+       fake a round linecap, since conic-gradient itself only draws hard
+       edges. ---- */
+    .score-ring {
+        position: relative;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 92px;
-        height: 92px;
+        width: 128px;
+        height: 128px;
         border-radius: 50%;
-        font-size: 1.9rem;
-        font-weight: 800;
-        color: white;
-        margin: 0 auto 0.4rem auto;
+        margin: 0 auto 0.6rem auto;
     }
-    .score-wrap {
-        text-align: center;
+    .score-ring-cap {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+    }
+    .score-ring-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 98px;
+        height: 98px;
+        border-radius: 50%;
+        background: #04203f;
+    }
+    .score-ring-value {
+        font-size: 1.5rem;
+        font-weight: 800;
     }
     .score-caption {
-        color: #6b7280;
+        color: #94a3b8;
         font-size: 0.85rem;
+    }
+    .score-verdict {
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-align: center;
+        max-width: 150px;
+    }
+
+    /* ---- Combined score overview card: circular overall score box on the
+       left, four criterion boxes in a 2x2 grid on the right, each with a
+       segmented 3-tier bar. Styled as a dark navy panel with teal-accented
+       bordered sub-boxes so it stands apart from the rest of the (light)
+       feedback screen. ---- */
+    .card.score-overview-card {
+        background: #04203f;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        margin-bottom: 3rem;
+    }
+    .score-overview-card {
+        display: flex;
+        align-items: stretch;
+        gap: 1.2rem;
+        flex-wrap: wrap;
+    }
+    .score-ring-box,
+    .score-criterion-box {
+        border: 1.5px solid rgba(45, 212, 191, 0.45);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .score-ring-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        padding: 1.4rem 1.4rem 1.2rem 1.4rem;
+        margin: 0 auto;
+    }
+    .score-overview-bars {
+        flex: 1 1 320px;
+        min-width: 300px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 1rem;
+        row-gap: 1rem;
+    }
+    .score-criterion-box {
+        padding: 1rem 1.1rem;
+    }
+    .score-criterion-title {
+        color: #f1f5f9;
+        font-weight: 500;
+        font-size: 0.95rem;
+        margin-bottom: 0.25rem;
+    }
+    .score-criterion-helper {
+        color: rgba(226, 232, 240, 0.55);
+        font-size: 0.65rem;
+        line-height: 1.35;
+        margin-bottom: 0.7rem;
+    }
+    .score-tier-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+        margin-bottom: 6px;
+    }
+    .score-tier-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+    .score-tier-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+
+    /* ---- Insight cards: Overall Performance / Top Strengths / Areas for
+       Improvement, each a light bordered card with an icon+heading row ---- */
+    .insight-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 1.3rem 1.5rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+    .insight-card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 0.7rem;
+    }
+    .insight-card ul {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+    .insight-card li {
+        margin-bottom: 4px;
+    }
+    .insight-card p {
+        margin: 0;
+    }
+
+    /* ---- Response evaluation: each question renders as an accordion item
+       built from native <details>/<summary>, so expanding/collapsing needs
+       no Streamlit rerun. The <summary> header holds the topic pill,
+       question text, and score; the body holds the answer and key
+       takeaways. ---- */
+    /* Streamlit's flex column adds each element's own margins rather than
+       collapsing them, so this must net out to the same total gap as
+       .card's margin-bottom above: 3rem total minus the preceding
+       .insight-card's own 1.2rem margin-bottom = 1.8rem here. */
+    .st-key-response_eval_title {
+        margin-top: 1.8rem;
+    }
+    .response-eval-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
+    .response-eval-accordion-item {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 0 1.6rem;
+    }
+    .response-eval-accordion-item[open] {
+        padding-bottom: 1.5rem;
+    }
+    .response-eval-accordion-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 1.2rem 0;
+        cursor: pointer;
+        list-style: none;
+    }
+    .response-eval-accordion-header::-webkit-details-marker {
+        display: none;
+    }
+    .response-eval-accordion-header::after {
+        content: "";
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        margin-left: 4px;
+        border-right: 2px solid #6b7280;
+        border-bottom: 2px solid #6b7280;
+        transform: rotate(-45deg);
+        transition: transform 0.15s ease;
+    }
+    .response-eval-accordion-item[open] > .response-eval-accordion-header::after {
+        transform: rotate(45deg);
+    }
+    .response-eval-accordion-body > .response-eval-section-label:first-child {
+        margin-top: 0.5rem;
+    }
+    /* Topic pill + question stack in one column; the mini score ring sits
+       beside that column as its own flex item. */
+    .response-eval-header-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+    }
+    .response-eval-accordion-header .score-ring {
+        margin: 0 0 0 32px;
+        flex-shrink: 0;
+    }
+    .response-eval-topic-pill {
+        display: inline-block;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: rgba(0, 84, 163, 0.08);
+        color: #0054a3;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .response-eval-question {
+        font-size: 1.05rem;
+        font-weight: 500;
+        color: #111827;
+        margin: 0;
+    }
+    .response-eval-section-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        color: #374151;
+        font-size: 1.05rem;
+        margin-bottom: 5px;
+        margin-top: 2rem;
+    }
+    .response-eval-answer-box {
+        background: rgba(148, 163, 184, 0.07);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        color: #374151;
+        margin-bottom: 1.3rem;
+    }
+    .response-eval-takeaways-list {
+        margin: 0 0 16px 0;
+        padding-left: 1.2rem;
+        color: #374151;
+    }
+    .response-eval-takeaways-list li {
+        margin-bottom: 4px;
     }
 
     hr {
@@ -318,6 +574,19 @@ CUSTOM_CSS = """
         background-color: rgba(240, 242, 246, 0.5);
         border-radius: 8px;
         padding: 16px;
+    }
+
+    /* ---- Chat input box ---- */
+    /* -webkit-appearance/appearance: none is needed for Safari on macOS,
+       which otherwise applies its native rounded "capsule" search-field
+       chrome to the textarea, overriding the authored border-radius below
+       and making the box look pill/circular regardless of this rule. */
+    [data-testid="stChatInput"] > div {
+        border-radius: 20px !important;
+    }
+    [data-testid="stChatInputTextArea"] {
+        -webkit-appearance: none;
+        appearance: none;
     }
 
     /* ---- Typing indicator ---- */
@@ -615,45 +884,210 @@ def render_step_indicator(feedback_shown: bool, setup_complete: bool, setup_step
                 )
 
 
-def render_evaluation(evaluation):
-    """Renders a structured InterviewEvaluation (see schemas.py)."""
-    for i, q in enumerate(evaluation.questions, start=1):
-        st.markdown(
-            f'<div class="card">'
-            f'<b>Question {i}: {html.escape(q.topic)}</b>'
-            f'<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;"/>'
-            f'<span style="color:#6b7280;">Asked:</span> {html.escape(q.question_asked)}<br/>'
-            f'<span style="color:#6b7280;">Candidate:</span> {html.escape(q.candidate_response_summary)}<br/>'
-            f'<b>Score:</b> {q.score}/10<br/>'
-            f'<span style="color:#6b7280;">{html.escape(q.critique)}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**✅ Top Strengths**")
-        for item in evaluation.top_strengths:
-            st.markdown(f"- {item}")
-    with col2:
-        st.markdown("**📈 Areas for Improvement**")
-        for item in evaluation.areas_for_improvement:
-            st.markdown(f"- {item}")
-
-    st.markdown("---")
-    st.markdown(f"**Final Verdict:** {evaluation.final_verdict}")
+def _icon_img(uri: str, size: str = "1em") -> str:
+    return f'<img src="{uri}" style="height:{size}; vertical-align:-0.15em; margin-right:4px;"/>'
 
 
-def render_score_badge(score_val: float):
-    """Renders the circular score badge."""
-    color = "#22C55E" if score_val >= 7.5 else "#F59E0B" if score_val >= 5 else "#EF4444"
+def _render_insight_card(icon: str, title: str, body_html: str):
     st.markdown(
-        f"""
-        <div class="score-wrap">
-            <div class="score-badge" style="background:{color};">{score_val:g}</div>
-            <div class="score-caption">Overall score out of 10</div>
-        </div>
-        """,
+        f'<div class="insight-card">'
+        f'<div class="insight-card-title"><span>{icon}</span><span>{html.escape(title)}</span></div>'
+        f'{body_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
-    st.markdown("<hr/>", unsafe_allow_html=True)
+
+
+def render_evaluation(evaluation, turns):
+    """Renders a structured InterviewEvaluation (see schemas.py) alongside the
+    original interview turns, which supply the ground-truth question text and
+    the candidate's verbatim answer for each entry.
+    """
+    _render_insight_card(
+        _icon_img(BAR_CHART_ICON_URI), "Overall Performance", f"<p>{html.escape(evaluation.overall_summary)}</p>"
+    )
+
+    strengths_html = "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.top_strengths) + "</ul>"
+    _render_insight_card(_icon_img(STRENGTHS_ICON_URI), "Top Strengths", strengths_html)
+
+    improvements_html = (
+        "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in evaluation.areas_for_improvement) + "</ul>"
+    )
+    _render_insight_card(_icon_img(IMPROVEMENT_ICON_URI), "Areas for Improvement", improvements_html)
+
+    with st.container(key="response_eval_title"):
+        st.markdown(
+            f'<h4>{_icon_img(EVALUATION_ICON_URI, size="1.2em")} Response Evaluation</h4>', unsafe_allow_html=True
+        )
+    render_response_evaluation(evaluation, turns)
+
+
+TIER_LABELS = ("Poor", "Average", "Excellent")
+TIER_COLORS = ("#EF4444", "#F59E0B", "#2DD4BF")
+TIER_VERDICTS = ("Needs Improvement", "Solid Performance", "Strong Performance")
+
+
+def _tier_index(score_val: float) -> int:
+    """0 = Poor (1-3), 1 = Average (4-7), 2 = Excellent (8-10)."""
+    if score_val >= 8:
+        return 2
+    if score_val >= 4:
+        return 1
+    return 0
+
+
+def _score_color(score_val: float) -> str:
+    return TIER_COLORS[_tier_index(score_val)]
+
+
+# Visual order for the 2x2 criteria grid: Role Fit / Problem-Solving on top,
+# Depth & Substance / Communication on the bottom.
+SCORE_GRID_ORDER = ("Role Fit", "Problem-Solving", "Depth & Substance", "Communication")
+
+CRITERIA_HELP_TEXT = {
+    "Communication": "How clear, articulate, and well-structured the candidate's communication was.",
+    "Depth & Substance": "How much concrete depth, detail, and evidence the candidate's answers contained.",
+    "Problem-Solving": "The quality of the candidate's reasoning and problem-solving approach.",
+    "Role Fit": "How well the candidate's background and answers align with what the role requires.",
+}
+
+
+RING_SIZE = 128
+RING_THICKNESS = 14
+
+
+MINI_RING_SIZE = 60
+MINI_RING_THICKNESS = 6
+
+
+def _render_ring_html(
+    value: float,
+    color: str,
+    size: int = RING_SIZE,
+    thickness: int = RING_THICKNESS,
+    inner_bg: str = "#04203f",
+    font_size: str = "1.5rem",
+    show_denominator: bool = True,
+    track_color: str = "rgba(255, 255, 255, 0.12)",
+) -> str:
+    """Builds a circular progress ring (conic-gradient) for a 0-10 value.
+
+    Two small dots are positioned at the start and end of the arc (via trig
+    on the percentage) to fake a round linecap, since conic-gradient itself
+    can only draw a hard edge. Reused for both the large overall-score ring
+    and the small per-question rings, which sit on different backgrounds
+    (dark score card vs. light response-evaluation card) — hence inner_bg
+    and track_color, which need to stay visible against whichever it is.
+    """
+    pct = value / 10 * 100
+    center = size / 2
+    radius = center - thickness / 2
+
+    def cap_style(p):
+        theta = (p / 100) * 2 * math.pi
+        x = center + radius * math.sin(theta) - thickness / 2
+        y = center - radius * math.cos(theta) - thickness / 2
+        return f"left:{x:.1f}px; top:{y:.1f}px; width:{thickness}px; height:{thickness}px; background:{color};"
+
+    inner_size = size - thickness * 2
+    value_text = f"{value:g}/10" if show_denominator else f"{value:g}"
+    return (
+        f'<div class="score-ring" style="width:{size}px; height:{size}px; '
+        f'background: conic-gradient({color} {pct}%, {track_color} 0%);">'
+        f'<div class="score-ring-cap" style="{cap_style(0)}"></div>'
+        f'<div class="score-ring-cap" style="{cap_style(pct)}"></div>'
+        f'<div class="score-ring-inner" style="width:{inner_size}px; height:{inner_size}px; background:{inner_bg};">'
+        f'<span class="score-ring-value" style="color:{color}; font-size:{font_size};">{value_text}</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+
+def _criterion_box_html(label: str, value: float) -> str:
+    tier = _tier_index(value)
+    color = TIER_COLORS[tier]
+    pct = value / 10 * 100
+    helper_text = html.escape(CRITERIA_HELP_TEXT.get(label, ""))
+    return (
+        f'<div class="score-criterion-box">'
+        f'<div class="score-criterion-title">{html.escape(label)}</div>'
+        f'<div class="score-criterion-helper">{helper_text}</div>'
+        f'<div class="score-tier-track">'
+        f'<div class="score-tier-fill" style="width:{pct}%; background:{color};"></div>'
+        f'</div>'
+        f'<div class="score-tier-label" style="color:{color};">'
+        f'<span>{TIER_LABELS[tier]}</span><span>{value:.1f}/10</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+
+def render_score_overview(evaluation):
+    """Renders one card combining a circular overall score progress ring with
+    a 2x2 grid of criterion boxes, each showing a segmented 3-tier bar
+    (Poor / Average / Excellent) for the four supporting criteria.
+    """
+    overall = evaluation.clamped_overall_score()
+    overall_color = _score_color(overall)
+    overall_verdict = TIER_VERDICTS[_tier_index(overall)]
+    scores_by_label = dict(evaluation.criteria_scores())
+
+    boxes_html = "".join(_criterion_box_html(label, scores_by_label[label]) for label in SCORE_GRID_ORDER)
+    ring_html = _render_ring_html(overall, overall_color)
+
+    st.markdown(
+        f'<div class="card score-overview-card">'
+        f'<div class="score-ring-box">'
+        f'{ring_html}'
+        f'<div class="score-caption">Overall Score</div>'
+        f'<div class="score-verdict">{overall_verdict}</div>'
+        f'</div>'
+        f'<div class="score-overview-bars">{boxes_html}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_response_evaluation(evaluation, turns):
+    """Renders each question as a collapsible accordion item.
+
+    The header (a <summary>) holds the topic pill and question text
+    stacked in one column, plus a mini score ring; the body holds the
+    candidate's answer and the key takeaways. All items start collapsed.
+    """
+    items_html = []
+    for i, q in enumerate(evaluation.questions):
+        turn = turns[i]
+        color = _score_color(q.score)
+        takeaways_html = "".join(f"<li>{html.escape(t)}</li>" for t in q.key_takeaways)
+        ring_html = _render_ring_html(
+            q.score,
+            color,
+            size=MINI_RING_SIZE,
+            thickness=MINI_RING_THICKNESS,
+            inner_bg="#fff",
+            font_size="0.78rem",
+            track_color="rgba(148, 163, 184, 0.25)",
+        )
+        items_html.append(
+            f'<details class="response-eval-accordion-item">'
+            f'<summary class="response-eval-accordion-header">'
+            f'<div class="response-eval-header-text">'
+            f'<span class="response-eval-topic-pill">{html.escape(q.topic)}</span>'
+            f'<span class="response-eval-question">{html.escape(turn["displayed_question"])}</span>'
+            f'</div>'
+            f'{ring_html}'
+            f'</summary>'
+            f'<div class="response-eval-accordion-body">'
+            f'<div class="response-eval-section-label"><span>{_icon_img(CHAT_ICON_URI)}</span><span>Your Answer</span></div>'
+            f'<div class="response-eval-answer-box">{html.escape(turn["answer"] or "")}</div>'
+            f'<div class="response-eval-section-label"><span>{_icon_img(KEY_ICON_URI)}</span><span>Key Takeaways</span></div>'
+            f'<ul class="response-eval-takeaways-list">{takeaways_html}</ul>'
+            f'</div>'
+            f'</details>'
+        )
+
+    st.markdown(
+        f'<div class="response-eval-accordion">{"".join(items_html)}</div>',
+        unsafe_allow_html=True,
+    )
