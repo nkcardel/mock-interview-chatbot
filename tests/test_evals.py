@@ -17,9 +17,22 @@ import prompts
 from eval_cache import cached_call
 from schemas import InterviewEvaluation, SetupResult
 
-pytestmark = pytest.mark.model_eval
+pytestmark = [
+    pytest.mark.model_eval,
+    pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY not set",
+    ),
+]
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+_client = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    return _client
 
 # ---------------------------------------------------------------------------
 # Fixed candidate profiles — this is the "eval dataset."
@@ -78,7 +91,7 @@ def generate_setup_questions(profile: dict, db_questions: list) -> list:
     payload = {"model": prompts.MODEL_NAME, "system_prompt": system_prompt, "temperature": 0.7, "schema": "SetupResult"}
 
     def _live():
-        completion = client.beta.chat.completions.parse(
+        completion = _get_client().beta.chat.completions.parse(
             model=prompts.MODEL_NAME,
             messages=[{"role": "system", "content": system_prompt}],
             temperature=0.7,
@@ -104,7 +117,7 @@ def judge_question(question: str, profile: dict) -> QuestionJudgement:
     payload = {"model": prompts.MODEL_NAME, "prompt": judge_prompt, "temperature": 0, "schema": "QuestionJudgement"}
 
     def _live():
-        completion = client.beta.chat.completions.parse(
+        completion = _get_client().beta.chat.completions.parse(
             model=prompts.MODEL_NAME,
             messages=[{"role": "user", "content": judge_prompt}],
             response_format=QuestionJudgement,
@@ -157,7 +170,7 @@ def test_grader_score_consistency():
         }
 
         def _live():
-            completion = client.beta.chat.completions.parse(
+            completion = _get_client().beta.chat.completions.parse(
                 model=prompts.MODEL_NAME,
                 messages=[
                     {"role": "system", "content": prompts.EVALUATION_SYSTEM_PROMPT},
